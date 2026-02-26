@@ -2,19 +2,20 @@
   "name": "askmynotes-backend",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Controlled RAG backend for AskMyNotes",
   "author": {
     "name": "Team Horizon",
     "email": "harsh@greenhacker.in"
   },
   "scripts": {
-    "build": "prisma generate && tsc -p tsconfig.json",
-    "dev": "ts-node src/server.ts",
+    "build": "prisma generate && tsup src/server.ts --format esm --target node20 --outDir dist --clean --sourcemap",
+    "dev": "tsx src/server.ts",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "checkpointer:setup": "ts-node src/scripts/setupCheckpointer.ts",
+    "checkpointer:setup": "tsx src/scripts/setupCheckpointer.ts",
     "better-auth:generate": "better-auth generate --config src/auth.ts --yes",
-    "ingest:pdf:query": "ts-node src/scripts/ingestAndQueryPdf.ts",
+    "ingest:pdf:query": "tsx src/scripts/ingestAndQueryPdf.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "postinstall": "npx prisma migrate deploy && npx prisma generate"
@@ -53,6 +54,8 @@
     "@types/react-dom": "^19.2.3",
     "prisma": "^7.4.1",
     "ts-node": "^10.9.2",
+    "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }
