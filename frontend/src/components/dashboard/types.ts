@@ -58,7 +58,7 @@ export interface Subject {
     threadId: string;
 }
 
-export type DashboardTab = "notes" | "chat" | "study";
+export type DashboardTab = "notes" | "chat" | "voice" | "study";
 
 export const SUBJECT_COLORS = [
     { bg: "bg-blue-100", border: "border-blue-300", text: "text-blue-700", accent: "#3b82f6", emoji: "📘" },

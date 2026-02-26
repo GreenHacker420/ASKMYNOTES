@@ -91,145 +91,145 @@ export function NotesPanel({ subject, onUploadFiles, onDeleteFile }: NotesPanelP
                     {/* Background Shadow */}
                     <div className="absolute inset-0 bg-slate-900 rounded-xl translate-x-2 translate-y-2 blur-[2px] opacity-10" />
 
-                <div
-                    onDrop={handleDrop}
-                    onDragOver={handleDragOver}
-                    onDragLeave={() => setDragOver(false)}
-                    onClick={() => fileInputRef.current?.click()}
-                    className={cn(
-                        "relative z-10 rounded-xl border-dashed p-10 text-center cursor-pointer transition-all border-[3px]",
-                        dragOver
-                            ? "border-blue-500 bg-blue-50 scale-[1.02] shadow-[8px_8px_0px_0px_rgba(59,130,246,0.3)]"
-                            : "border-slate-300 bg-white hover:border-slate-800 hover:bg-yellow-50 hover:-translate-y-1 hover:shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]"
-                    )}
-                    style={{ filter: "url(#squiggle)" }}
-                >
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".pdf,.txt"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => {
-                            processFiles(e.target.files);
-                            e.target.value = "";
-                        }}
-                    />
-
-                    <motion.div
-                        animate={dragOver ? { y: -5, scale: 1.1 } : { y: 0, scale: 1 }}
-                        className="flex flex-col items-center gap-3"
-                    >
-                        <motion.div
-                            animate={{ rotate: dragOver ? [-10, 10, -10] : 0 }}
-                            transition={{ repeat: Infinity, duration: 1 }}
-                            className={cn(
-                                "w-16 h-16 rounded-full border-2 flex items-center justify-center transition-colors shadow-sm",
-                                dragOver ? "border-blue-500 bg-blue-100" : "border-slate-900 bg-yellow-200"
-                            )}
-                        >
-                            <Upload size={28} className={dragOver ? "text-blue-600" : "text-slate-900"} />
-                        </motion.div>
-                        <div>
-                            <p className="text-lg font-black text-slate-800 tracking-tight">
-                                {dragOver ? "Drop 'em right here!" : "Drag & drop or click to upload"}
-                            </p>
-                            <p className="text-sm font-medium text-slate-500 mt-1 font-mono">
-                                PDF and TXT files only • Multiple files supported
-                            </p>
-                        </div>
-                    </motion.div>
-                </div>
-            </div>
-
-            {/* Error */}
-            <AnimatePresence>
-                {error && (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                        className="flex items-center gap-3 rounded-lg border-2 border-slate-900 bg-red-200 p-4 text-sm font-bold text-red-900 mb-6 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
+                    <div
+                        onDrop={handleDrop}
+                        onDragOver={handleDragOver}
+                        onDragLeave={() => setDragOver(false)}
+                        onClick={() => fileInputRef.current?.click()}
+                        className={cn(
+                            "relative z-10 rounded-xl border-dashed p-10 text-center cursor-pointer transition-all border-[3px]",
+                            dragOver
+                                ? "border-blue-500 bg-blue-50 scale-[1.02] shadow-[8px_8px_0px_0px_rgba(59,130,246,0.3)]"
+                                : "border-slate-300 bg-white hover:border-slate-800 hover:bg-yellow-50 hover:-translate-y-1 hover:shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]"
+                        )}
                         style={{ filter: "url(#squiggle)" }}
                     >
-                        <AlertCircle size={20} className="shrink-0" />
-                        <p>{error}</p>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".pdf,.txt"
+                            multiple
+                            className="hidden"
+                            onChange={(e) => {
+                                processFiles(e.target.files);
+                                e.target.value = "";
+                            }}
+                        />
 
-            {/* File list */}
-            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                <AnimatePresence mode="popLayout">
-                    {subject.files.length === 0 ? (
                         <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="flex flex-col items-center justify-center py-16 px-4 text-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50"
+                            animate={dragOver ? { y: -5, scale: 1.1 } : { y: 0, scale: 1 }}
+                            className="flex flex-col items-center gap-3"
                         >
                             <motion.div
-                                animate={{ y: [0, -5, 0], rotate: [0, 5, 0] }}
-                                transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-                                className="mb-4 text-6xl opacity-50 grayscale hover:grayscale-0 transition-all cursor-pointer"
+                                animate={{ rotate: dragOver ? [-10, 10, -10] : 0 }}
+                                transition={{ repeat: Infinity, duration: 1 }}
+                                className={cn(
+                                    "w-16 h-16 rounded-full border-2 flex items-center justify-center transition-colors shadow-sm",
+                                    dragOver ? "border-blue-500 bg-blue-100" : "border-slate-900 bg-yellow-200"
+                                )}
                             >
-                                📄
+                                <Upload size={28} className={dragOver ? "text-blue-600" : "text-slate-900"} />
                             </motion.div>
-                            <h4 className="text-xl font-black text-slate-700 tracking-tight mb-2">It's a little empty here...</h4>
-                            <p className="text-slate-500 font-medium max-w-sm">
-                                Toss some study material in the dropzone above to get start generating smart answers and quizzes.
-                            </p>
-
-                            {/* Hand-drawn arrow decoration */}
-                            <div className="absolute top-1/2 left-10 md:left-24 opacity-20 hidden lg:block pointer-events-none">
-                                <svg width="80" height="120" viewBox="0 0 100 150" fill="none">
-                                    <path d="M90 140 Q 10 120, 20 20 T 50 10" stroke="#0f172a" strokeWidth="4" strokeLinecap="round" fill="none" strokeDasharray="8 8" />
-                                    <path d="M35 25 L50 10 L65 25" stroke="#0f172a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                                </svg>
+                            <div>
+                                <p className="text-lg font-black text-slate-800 tracking-tight">
+                                    {dragOver ? "Drop 'em right here!" : "Drag & drop or click to upload"}
+                                </p>
+                                <p className="text-sm font-medium text-slate-500 mt-1 font-mono">
+                                    PDF and TXT files only • Multiple files supported
+                                </p>
                             </div>
                         </motion.div>
-                    ) : (
-                        <div className="space-y-3">
-                            {subject.files.map((file, i) => (
-                                <motion.div
-                                    key={file.id}
-                                    initial={{ opacity: 0, x: -20, y: 10 }}
-                                    animate={{ opacity: 1, x: 0, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.9 }}
-                                    transition={{ delay: i * 0.05 }}
-                                    className="group flex flex-col sm:flex-row sm:items-center gap-4 rounded-xl border-2 border-slate-900 bg-white p-4 transition-all hover:-translate-y-1 hover:shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]"
-                                >
-                                    <div className={cn(
-                                        "w-12 h-12 rounded-lg flex items-center justify-center border-2 border-slate-900 shadow-sm shrink-0",
-                                        file.type === "pdf"
-                                            ? "bg-rose-100 text-rose-600"
-                                            : "bg-sky-100 text-sky-600"
-                                    )}>
-                                        <FileType size={24} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-base font-bold text-slate-900 truncate tracking-tight">{file.name}</p>
-                                        <div className="flex items-center gap-3 mt-1">
-                                            <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 font-mono">
-                                                {file.type.toUpperCase()}
-                                            </span>
-                                            <span className="text-xs text-slate-500 font-medium">
-                                                {formatSize(file.size)}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => onDeleteFile(subject.id, file.id)}
-                                        className="sm:opacity-0 group-hover:opacity-100 flex items-center justify-center w-10 h-10 rounded-lg border-2 border-transparent hover:border-slate-900 hover:bg-red-100 hover:text-red-600 text-slate-400 transition-all shrink-0 self-end sm:self-auto"
-                                        title="Delete file"
-                                    >
-                                        <Trash2 size={18} />
-                                    </button>
-                                </motion.div>
-                            ))}
-                        </div>
+                    </div>
+                </div>
+
+                {/* Error */}
+                <AnimatePresence>
+                    {error && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                            className="flex items-center gap-3 rounded-lg border-2 border-slate-900 bg-red-200 p-4 text-sm font-bold text-red-900 mb-6 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
+                            style={{ filter: "url(#squiggle)" }}
+                        >
+                            <AlertCircle size={20} className="shrink-0" />
+                            <p>{error}</p>
+                        </motion.div>
                     )}
                 </AnimatePresence>
-            </div>
+
+                {/* File list */}
+                <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                    <AnimatePresence mode="popLayout">
+                        {subject.files.length === 0 ? (
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="flex flex-col items-center justify-center py-16 px-4 text-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50"
+                            >
+                                <motion.div
+                                    animate={{ y: [0, -5, 0], rotate: [0, 5, 0] }}
+                                    transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+                                    className="mb-4 text-6xl opacity-50 grayscale hover:grayscale-0 transition-all cursor-pointer"
+                                >
+                                    📄
+                                </motion.div>
+                                <h4 className="text-xl font-black text-slate-700 tracking-tight mb-2">It's a little empty here...</h4>
+                                <p className="text-slate-500 font-medium max-w-sm">
+                                    Toss some study material in the dropzone above to get start generating smart answers and quizzes.
+                                </p>
+
+                                {/* Hand-drawn arrow decoration */}
+                                <div className="absolute top-1/2 left-10 md:left-24 opacity-20 hidden lg:block pointer-events-none">
+                                    <svg width="80" height="120" viewBox="0 0 100 150" fill="none">
+                                        <path d="M90 140 Q 10 120, 20 20 T 50 10" stroke="#0f172a" strokeWidth="4" strokeLinecap="round" fill="none" strokeDasharray="8 8" />
+                                        <path d="M35 25 L50 10 L65 25" stroke="#0f172a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                                    </svg>
+                                </div>
+                            </motion.div>
+                        ) : (
+                            <div className="space-y-3">
+                                {subject.files.map((file, i) => (
+                                    <motion.div
+                                        key={file.id}
+                                        initial={{ opacity: 0, x: -20, y: 10 }}
+                                        animate={{ opacity: 1, x: 0, y: 0 }}
+                                        exit={{ opacity: 0, scale: 0.9 }}
+                                        transition={{ delay: i * 0.05 }}
+                                        className="group flex flex-col sm:flex-row sm:items-center gap-4 rounded-xl border-2 border-slate-900 bg-white p-4 transition-all hover:-translate-y-1 hover:shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]"
+                                    >
+                                        <div className={cn(
+                                            "w-12 h-12 rounded-lg flex items-center justify-center border-2 border-slate-900 shadow-sm shrink-0",
+                                            file.type === "pdf"
+                                                ? "bg-rose-100 text-rose-600"
+                                                : "bg-sky-100 text-sky-600"
+                                        )}>
+                                            <FileType size={24} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-base font-bold text-slate-900 truncate tracking-tight">{file.name}</p>
+                                            <div className="flex items-center gap-3 mt-1">
+                                                <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 font-mono">
+                                                    {file.type.toUpperCase()}
+                                                </span>
+                                                <span className="text-xs text-slate-500 font-medium">
+                                                    {formatSize(file.size)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => onDeleteFile(subject.id, file.id)}
+                                            className="sm:opacity-0 group-hover:opacity-100 flex items-center justify-center w-10 h-10 rounded-lg border-2 border-transparent hover:border-slate-900 hover:bg-red-100 hover:text-red-600 text-slate-400 transition-all shrink-0 self-end sm:self-auto"
+                                            title="Delete file"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        )}
+                    </AnimatePresence>
+                </div>
             </div>
         </div>
     );

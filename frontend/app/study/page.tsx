@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut, FileText, MessageSquare, Brain, BookOpen } from "lucide-react";
+import { LogOut, FileText, MessageSquare, Brain, BookOpen, Mic } from "lucide-react";
 import { SquiggleFilter } from "@/src/components/CoreLandingPages/CompleteLandingPages/tsx/SquiggleFilter";
 import { GraphPaper } from "@/src/components/CoreLandingPages/CompleteLandingPages/tsx/GraphPaper";
 import { SketchButton } from "@/src/components/CoreLandingPages/CompleteLandingPages/tsx/SketchButton";
@@ -12,6 +12,7 @@ import { CreateSubjectModal } from "@/src/components/dashboard/CreateSubjectModa
 import { NotesPanel } from "@/src/components/dashboard/NotesPanel";
 import { ChatPanel } from "@/src/components/dashboard/ChatPanel";
 import { StudyModePanel } from "@/src/components/dashboard/StudyModePanel";
+import { VoicePanel } from "@/src/components/dashboard/VoicePanel";
 import { cn } from "@/src/lib/utils";
 import type {
   Subject,
@@ -184,6 +185,7 @@ import { useStudyStore } from "@/src/store/useStudyStore";
 const TABS: { key: DashboardTab; label: string; icon: React.ElementType }[] = [
   { key: "notes", label: "Notes", icon: FileText },
   { key: "chat", label: "Chat", icon: MessageSquare },
+  { key: "voice", label: "Voice", icon: Mic },
   { key: "study", label: "Study Mode", icon: Brain },
 ];
 
@@ -509,6 +511,18 @@ export default function DashboardPage() {
                         onSendMessage={handleSendMessage}
                         isLoading={isChatLoading}
                       />
+                    </motion.div>
+                  )}
+
+                  {activeTab === "voice" && (
+                    <motion.div
+                      key="voice"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="h-full"
+                    >
+                      <VoicePanel />
                     </motion.div>
                   )}
 

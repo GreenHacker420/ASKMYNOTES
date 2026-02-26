@@ -24,7 +24,14 @@ interface StudyState {
     deleteFile: (subjectId: string, fileId: string) => void;
     addChatMessage: (subjectId: string, message: ChatMessage) => void;
     setStudyQuiz: (subjectId: string, quiz: StudyQuiz) => void;
+
+    // Voice Actions
+    isVoiceActive: boolean;
+    setVoiceActive: (active: boolean) => void;
+    voiceStatus: "idle" | "listening" | "processing" | "speaking";
+    setVoiceStatus: (status: "idle" | "listening" | "processing" | "speaking") => void;
 }
+
 
 export const useStudyStore = create<StudyState>((set) => ({
     subjects: [],
@@ -74,10 +81,16 @@ export const useStudyStore = create<StudyState>((set) => ({
             ),
         })),
 
-    setStudyQuiz: (subjectId, quiz) =>
+    setStudyQuiz: (subjectId: string, quiz: StudyQuiz) =>
         set((state) => ({
             subjects: state.subjects.map((s) =>
                 s.id === subjectId ? { ...s, studyQuiz: quiz } : s
             ),
         })),
+
+    // Voice Actions implementation
+    isVoiceActive: false,
+    setVoiceActive: (active) => set({ isVoiceActive: active }),
+    voiceStatus: "idle",
+    setVoiceStatus: (status) => set({ voiceStatus: status }),
 }));
