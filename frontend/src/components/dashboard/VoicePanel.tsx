@@ -2,16 +2,21 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, Volume2, Sparkles, User, GraduationCap, X } from "lucide-react";
+import { Mic, MicOff, Volume2, Sparkles, User, GraduationCap, X, FileText } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import { useStudyStore } from "@/src/store/useStudyStore";
 import type { Subject } from "@/src/components/dashboard/types";
 import { getSocket } from "@/src/lib/socket";
+import { ConfidenceBadge } from "@/src/components/dashboard/ConfidenceBadge";
 
 interface VoiceMessage {
     id: string;
     role: "user" | "ai";
     text: string;
+    citations?: Array<{ fileName: string; page: number | null; chunkId: string }>;
+    confidence?: "High" | "Medium" | "Low";
+    evidence?: string[];
+    found?: boolean;
 }
 
 /* ---------- localStorage helpers for threadId ---------- */
@@ -263,14 +268,26 @@ export function VoicePanel() {
             setVoiceStatus("listening");
         };
 
-        const handleAnswer = (payload: { text: string }) => {
+        const handleAnswer = (payload: {
+            text: string;
+            citations?: Array<{ fileName: string; page: number | null; chunkId: string }>;
+            confidence?: "High" | "Medium" | "Low";
+            evidence?: string[];
+            found?: boolean;
+        }) => {
             if (!payload.text) return;
-            // CRAG text answer — add as an AI message if not already captured via output-transcript
-            setMessages((prev) => {
-                const last = prev[prev.length - 1];
-                if (last && last.role === "ai") return prev; // already have an AI message building
-                return [...prev, { id: `ai-${Date.now()}`, role: "ai", text: payload.text }];
-            });
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: `crag-${Date.now()}`,
+                    role: "ai",
+                    text: payload.text,
+                    citations: payload.citations,
+                    confidence: payload.confidence,
+                    evidence: payload.evidence,
+                    found: payload.found
+                }
+            ]);
         };
 
         const handleError = (payload: { error: string }) => {
@@ -402,11 +419,47 @@ export function VoicePanel() {
                                         : "bg-indigo-50 rounded-tr-none"
                                 )}>
                                     <p className={cn(
-                                        "text-sm leading-relaxed",
+                                        "text-sm leading-relaxed whitespace-pre-wrap",
                                         msg.role === "user" ? "italic text-slate-700" : "text-slate-900 font-medium"
                                     )}>
                                         {msg.role === "user" ? `"${msg.text}"` : msg.text}
                                     </p>
+
+                                    {/* Confidence badge */}
+                                    {msg.confidence && (
+                                        <div className="mt-2">
+                                            <ConfidenceBadge level={msg.confidence} />
+                                        </div>
+                                    )}
+
+                                    {/* Citations */}
+                                    {msg.citations && msg.citations.length > 0 && (
+                                        <div className="mt-2 pt-2 border-t border-slate-200">
+                                            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">📎 Citations</div>
+                                            <div className="flex flex-wrap gap-1">
+                                                {msg.citations.map((c, i) => (
+                                                    <span key={i} className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-mono text-blue-700">
+                                                        <FileText size={9} />
+                                                        {c.fileName} {c.page !== null && `p.${c.page}`}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Evidence snippets */}
+                                    {msg.evidence && msg.evidence.length > 0 && (
+                                        <div className="mt-2 pt-2 border-t border-slate-200">
+                                            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">📝 Evidence</div>
+                                            <ul className="space-y-1">
+                                                {msg.evidence.map((e, i) => (
+                                                    <li key={i} className="text-[11px] text-slate-600 bg-slate-50/80 rounded px-2 py-1 border-l-2 border-slate-300 italic line-clamp-2">
+                                                        &ldquo;{e}&rdquo;
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
                                 </div>
                             </motion.div>
                         ))}

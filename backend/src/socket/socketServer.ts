@@ -214,7 +214,13 @@ export function createSocketServer(options: SocketServerOptions): Server {
                       const response = await options.cragPipeline.ask(askRequest);
                       console.log("[voice] CRAG result length:", response.answer.length);
 
-                      socket.emit("voice:answer", { text: response.answer });
+                      socket.emit("voice:answer", {
+                        text: response.answer,
+                        citations: response.citations,
+                        confidence: response.confidence,
+                        evidence: response.evidence,
+                        found: response.found
+                      });
 
                       functionResponses.push({
                         id: fc.id,
