@@ -1,6 +1,12 @@
 {
     "version": 2,
-    "buildCommand": "prisma generate",
+    "buildCommand": "npx prisma generate",
+    "functions": {
+        "api/index.ts": {
+            "runtime": "@vercel/node@5",
+            "includeFiles": "src/**,generated/**,prisma/**,node_modules/.prisma/**"
+        }
+    },
     "rewrites": [
         {
             "source": "/(.*)",

@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_GYAaBSpON3ajNhCyc1ZnunVdEcg3",
+  "orgId": "team_fzUUExhBbTEUA6F6i128BnTf",
+  "projectName": "askmynotes-backend",
+  "settings": {
+    "createdAt": 1772100789167,
+    "framework": "express",
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": "backend",
+    "directoryListing": false,
+    "nodeVersion": "22.x"
+  }
+}
