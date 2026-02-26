@@ -1,0 +1,9 @@
+-- This migration folder is a placeholder for your first Prisma migration.
+-- Generate concrete SQL from schema.prisma with:
+--   npx prisma migrate dev --name init
+--
+-- LangGraph checkpointer tables are managed by setup script:
+--   npm run checkpointer:setup
+--
+-- If your deployment requires SQL-only migrations, apply `prisma/checkpointer.sql`
+-- after Prisma migrations, and keep it pinned to the installed checkpointer version.

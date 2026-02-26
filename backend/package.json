@@ -1,0 +1,37 @@
+{
+  "name": "askmynotes-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Controlled RAG backend for AskMyNotes",
+  "author":{
+    "name": "Team Horizon",
+    "email": "harsh@greenhacker.in"},
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "ts-node src/server.ts",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "checkpointer:setup": "ts-node src/scripts/setupCheckpointer.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev"
+  },
+  "dependencies": {
+    "@google/genai": "^1.43.0",
+    "@langchain/google-genai": "^2.1.20",
+    "@langchain/langgraph": "^1.1.5",
+    "@langchain/langgraph-checkpoint-postgres": "^1.0.1",
+    "@langchain/pinecone": "^1.0.1",
+    "@pinecone-database/pinecone": "^5.1.2",
+    "@prisma/client": "^7.4.1",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.3.1",
+    "prisma": "^7.4.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}

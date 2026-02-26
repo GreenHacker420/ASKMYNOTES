@@ -1,0 +1,75 @@
+import type { ILLMClient } from "../../interfaces/llmClient";
+import type { IMemoryService } from "../../interfaces/memory";
+import type { IReranker } from "../../interfaces/reranker";
+import type { IRetriever } from "../../interfaces/retriever";
+import type { AskRequest, CragResponse } from "../../types/crag";
+import { buildNotFoundMessage } from "./notFound";
+import type { PromptBuilder } from "../prompt/PromptBuilder";
+import type { PostProcessor } from "../postprocess/PostProcessor";
+
+export interface CragPipelineOptions {
+  retriever: IRetriever;
+  reranker: IReranker;
+  promptBuilder: PromptBuilder;
+  llmClient: ILLMClient;
+  postProcessor: PostProcessor;
+  memoryService: IMemoryService;
+  notFoundThreshold: number;
+  topK: number;
+  rerankTopN: number;
+}
+
+export class CragPipelineService {
+  private readonly options: CragPipelineOptions;
+
+  constructor(options: CragPipelineOptions) {
+    this.options = options;
+  }
+
+  async ask(input: AskRequest): Promise<CragResponse> {
+    const retrieved = await this.options.retriever.retrieve(
+      input.question,
+      input.subjectId,
+      this.options.topK
+    );
+
+    const reranked = this.options.reranker.rerank(
+      input.question,
+      retrieved,
+      this.options.rerankTopN
+    );
+
+    const topScore = reranked[0]?.score ?? 0;
+    if (topScore < this.options.notFoundThreshold) {
+      // Mandatory short-circuit: do not call LLM if below threshold.
+      return buildNotFoundMessage(input.subjectName);
+    }
+
+    const threadMemory = await this.options.memoryService.loadThreadMemory(input.threadId);
+
+    const promptMessages = this.options.promptBuilder.build({
+      question: input.question,
+      subjectName: input.subjectName,
+      chunks: reranked,
+      threadMemory
+    });
+
+    const llmRaw = await this.options.llmClient.invoke(promptMessages);
+    const notFoundMessage = buildNotFoundMessage(input.subjectName);
+
+    if (llmRaw.trim() === notFoundMessage) {
+      return notFoundMessage;
+    }
+
+    const response = this.options.postProcessor.buildFoundResponse(llmRaw, reranked);
+
+    await this.options.memoryService.appendThreadMemory(input.threadId, {
+      question: input.question,
+      answer: response.answer,
+      subjectId: input.subjectId,
+      createdAtIso: new Date().toISOString()
+    });
+
+    return response;
+  }
+}

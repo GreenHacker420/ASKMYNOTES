@@ -1,0 +1,67 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Subject {
+  id        String      @id @default(cuid())
+  name      String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  chunks    NoteChunk[]
+  threads   Thread[]
+
+  @@index([name])
+}
+
+model NoteChunk {
+  id         String   @id @default(cuid())
+  subjectId  String
+  subject    Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  pineconeId String   @unique
+  fileName   String
+  page       Int?
+  chunkId    String
+  text       String   @db.Text
+  metadata   Json
+  createdAt  DateTime @default(now())
+
+  @@index([subjectId])
+  @@index([subjectId, chunkId])
+}
+
+model Thread {
+  id        String       @id
+  subjectId String
+  subject   Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  turns     ThreadTurn[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([subjectId])
+}
+
+model ThreadTurn {
+  id        String   @id @default(cuid())
+  threadId  String
+  thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  role      String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([threadId])
+  @@index([createdAt])
+}
+
+// LangGraph checkpointer tables are managed by @langchain/langgraph-checkpoint-postgres via checkpointer.setup().
+// Keep them outside Prisma schema unless the exact SQL schema is pinned for your package version.
