@@ -18,10 +18,10 @@ function toConfidence(value: unknown, topScore: number): ConfidenceLevel {
   if (value === "High" || value === "Medium" || value === "Low") {
     return value;
   }
-  if (topScore >= 0.75) {
+  if (topScore > 0.85) {
     return "High";
   }
-  if (topScore >= 0.5) {
+  if (topScore > 0.65) {
     return "Medium";
   }
   return "Low";

@@ -3,7 +3,7 @@ import type { IMemoryService } from "../../interfaces/memory";
 import type { IReranker } from "../../interfaces/reranker";
 import type { IRetriever } from "../../interfaces/retriever";
 import type { AskRequest, CragResponse } from "../../types/crag";
-import { buildNotFoundMessage } from "./notFound";
+import { buildNotFoundResponse } from "./notFound";
 import type { PromptBuilder } from "../prompt/PromptBuilder";
 import type { PostProcessor } from "../postprocess/PostProcessor";
 
@@ -42,7 +42,7 @@ export class CragPipelineService {
     const topScore = reranked[0]?.score ?? 0;
     if (topScore < this.options.notFoundThreshold) {
       // Mandatory short-circuit: do not call LLM if below threshold.
-      return buildNotFoundMessage(input.subjectName);
+      return buildNotFoundResponse(input.subjectName);
     }
 
     const threadMemory = await this.options.memoryService.loadThreadMemory(input.threadId);
@@ -55,10 +55,10 @@ export class CragPipelineService {
     });
 
     const llmRaw = await this.options.llmClient.invoke(promptMessages);
-    const notFoundMessage = buildNotFoundMessage(input.subjectName);
+    const notFoundResponse = buildNotFoundResponse(input.subjectName);
 
-    if (llmRaw.trim() === notFoundMessage) {
-      return notFoundMessage;
+    if (llmRaw.trim() === notFoundResponse.answer) {
+      return notFoundResponse;
     }
 
     const response = this.options.postProcessor.buildFoundResponse(llmRaw, reranked);

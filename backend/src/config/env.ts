@@ -64,12 +64,20 @@ export interface AppEnv {
   smtpFrom: string;
   googleOauthClientId?: string;
   googleOauthClientSecret?: string;
+  frontendUrl: string;
 }
 
 export function loadAppEnv(): AppEnv {
   const googleApiKey = process.env.GOOGLE_API_KEY ?? process.env.GEMINI_API_KEY;
   if (!googleApiKey) {
     throw new Error("Missing GOOGLE_API_KEY (or GEMINI_API_KEY).");
+  }
+
+  const betterAuthSecret =
+    process.env.BETTER_AUTH_SECRET ?? "dev-only-better-auth-secret-change-before-production";
+
+  if (!process.env.BETTER_AUTH_SECRET) {
+    console.warn("BETTER_AUTH_SECRET is not set. Using a development fallback secret.");
   }
 
   return {
@@ -87,7 +95,7 @@ export function loadAppEnv(): AppEnv {
     port: readNumberEnv("PORT", 3001),
     langGraphAutoSetup: readBooleanEnv("LANGGRAPH_AUTO_SETUP", true),
     langGraphSchema: readEnv("LANGGRAPH_SCHEMA", "langgraph"),
-    betterAuthSecret: readEnv("BETTER_AUTH_SECRET"),
+    betterAuthSecret,
     betterAuthUrl: readEnv("BETTER_AUTH_URL"),
     betterAuthTrustedOrigins: (process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? "")
       .split(",")
@@ -100,7 +108,8 @@ export function loadAppEnv(): AppEnv {
     smtpPass: readEnv("SMTP_PASS"),
     smtpFrom: readEnv("SMTP_FROM"),
     googleOauthClientId: readOptionalEnv("GOOGLE_CLIENT_ID"),
-    googleOauthClientSecret: readOptionalEnv("GOOGLE_CLIENT_SECRET")
+    googleOauthClientSecret: readOptionalEnv("GOOGLE_CLIENT_SECRET"),
+    frontendUrl: readEnv("FRONTEND_URL", "http://localhost:3000")
   };
 }
 

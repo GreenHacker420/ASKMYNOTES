@@ -2,8 +2,14 @@ import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { fromNodeHeaders } from "better-auth/node";
 import type { BetterAuthInstance } from "./auth";
 
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+}
+
 export interface AuthenticatedRequest extends Request {
-  authUser?: unknown;
+  authUser?: AuthUser;
   authSession?: unknown;
 }
 

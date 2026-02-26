@@ -12,9 +12,9 @@ export class SubjectRepository {
     this.prisma = prisma;
   }
 
-  async findById(subjectId: string): Promise<SubjectRecord | null> {
-    const row = await this.prisma.subject.findUnique({
-      where: { id: subjectId },
+  async findById(subjectId: string, userId: string): Promise<SubjectRecord | null> {
+    const row = await this.prisma.subject.findFirst({
+      where: { id: subjectId, userId },
       select: { id: true, name: true }
     });
 

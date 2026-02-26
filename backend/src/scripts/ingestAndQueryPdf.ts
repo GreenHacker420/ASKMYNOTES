@@ -18,6 +18,7 @@ dotenv.config();
 interface CliArgs {
   file: string;
   question: string;
+  userId: string;
   subjectId: string;
   subjectName: string;
   threadId: string;
@@ -36,6 +37,7 @@ function parseArgs(argv: string[]): CliArgs {
 
   const file = map.get("file");
   const question = map.get("question");
+  const userId = map.get("userId") ?? "demo-user";
   const subjectId = map.get("subjectId") ?? "demo-subject";
   const subjectName = map.get("subjectName") ?? "Demo Subject";
   const threadId = map.get("threadId") ?? `thread-${randomUUID()}`;
@@ -51,6 +53,7 @@ function parseArgs(argv: string[]): CliArgs {
   return {
     file,
     question,
+    userId,
     subjectId,
     subjectName,
     threadId
@@ -65,6 +68,16 @@ async function main(): Promise<void> {
   const prismaProvider = new PrismaClientProvider(env.databaseUrl);
   const prisma = prismaProvider.getClient();
 
+  await prisma.user.upsert({
+    where: { id: args.userId },
+    update: {},
+    create: {
+      id: args.userId,
+      name: "Demo User",
+      email: `${args.userId}@example.com`
+    }
+  });
+
   const pinecone = new PineconeClientFactory({ apiKey: env.pineconeApiKey }).createClient();
 
   const ingestionService = new PdfIngestionService({
@@ -78,6 +91,7 @@ async function main(): Promise<void> {
 
   const ingestion = await ingestionService.ingestPdf({
     filePath: args.file,
+    userId: args.userId,
     subjectId: args.subjectId,
     subjectName: args.subjectName
   });

@@ -1,4 +1,7 @@
+import cors from "cors";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { toNodeHandler } from "better-auth/node";
 import { buildCragConfig } from "./config/cragConfig";
@@ -61,8 +64,7 @@ export function createApp(envInput?: AppEnv): AppBootstrap {
 
   const memoryService = new LangGraphPostgresMemoryService({
     connectionString: env.databaseUrl,
-    autoSetup: env.langGraphAutoSetup,
-    schema: env.langGraphSchema
+    autoSetup: env.langGraphAutoSetup
   });
 
   const postProcessor = new PostProcessor();
@@ -85,9 +87,35 @@ export function createApp(envInput?: AppEnv): AppBootstrap {
   });
 
   const app = express();
-  app.all("/api/auth/{*any}", toNodeHandler(auth));
-  app.use(express.json());
-  app.use("/api", createAskRoutes(askController, requireAuth));
+
+  // ── Security middleware ──
+  app.use(helmet());
+  app.use(cors({
+    origin: true,
+    credentials: true
+  }));
+
+  // ── Rate limiters ──
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    limit: 30,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { error: "Too many auth requests, please try again later." }
+  });
+
+  const askLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    limit: 20,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { error: "Too many requests, please slow down." }
+  });
+
+  // ── Routes ──
+  app.all("/api/auth/{*any}", authLimiter, toNodeHandler(auth));
+  app.use(express.json({ limit: "1mb" }));
+  app.use("/api", askLimiter, createAskRoutes(askController, requireAuth));
 
   app.get("/health", (_req: Request, res: Response) => {
     res.status(200).json({ ok: true });

@@ -16,12 +16,15 @@ datasource db {
 model Subject {
   id        String      @id @default(cuid())
   name      String
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   chunks    NoteChunk[]
   threads   Thread[]
 
   @@index([name])
+  @@index([userId])
 }
 
 model NoteChunk {
@@ -76,6 +79,7 @@ model User {
   updatedAt     DateTime  @updatedAt
   sessions      Session[]
   accounts      Account[]
+  subjects      Subject[]
 
   @@unique([email])
   @@map("user")

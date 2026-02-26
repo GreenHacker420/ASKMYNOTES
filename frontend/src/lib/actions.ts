@@ -31,7 +31,15 @@ export interface AskFoundResponse {
   found: true;
 }
 
-export type AskResponsePayload = AskFoundResponse | string;
+export interface AskNotFoundResponse {
+  answer: string;
+  citations: [];
+  confidence: "Low";
+  evidence: [];
+  found: false;
+}
+
+export type AskResponsePayload = AskFoundResponse | AskNotFoundResponse;
 
 export interface ActionResult<T> {
   ok: boolean;
@@ -100,9 +108,8 @@ export async function askNotesAction(input: AskRequestPayload): Promise<ActionRe
       })
     });
 
-    const contentType = response.headers.get("content-type") ?? "";
-
     if (!response.ok) {
+      const contentType = response.headers.get("content-type") ?? "";
       const errorPayload = contentType.includes("application/json") ? await response.json() : await response.text();
       const message =
         typeof errorPayload === "string"
@@ -118,20 +125,11 @@ export async function askNotesAction(input: AskRequestPayload): Promise<ActionRe
       };
     }
 
-    if (contentType.includes("application/json")) {
-      const data = (await response.json()) as AskFoundResponse;
-      return {
-        ok: true,
-        status: response.status,
-        data
-      };
-    }
-
-    const text = await response.text();
+    const data = (await response.json()) as AskResponsePayload;
     return {
       ok: true,
       status: response.status,
-      data: text
+      data
     };
   } catch {
     return {

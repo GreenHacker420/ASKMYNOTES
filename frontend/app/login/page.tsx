@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { AlertCircle, Lock, LogIn, Mail } from "lucide-react";
+import { AlertCircle, Lock, LogIn, Mail, Eye, EyeOff } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import { authClient } from "@/src/lib/auth-client";
@@ -38,6 +38,10 @@ function SketchyInput({
   onChange,
   error
 }: SketchyInputProps): React.ReactElement {
+  const [showPassword, setShowPassword] = useState(false);
+  const isPassword = type === "password";
+  const inputType = isPassword && showPassword ? "text" : type;
+
   return (
     <div className="flex flex-col gap-1 mb-3 w-full">
       <div className="relative group w-full">
@@ -70,13 +74,22 @@ function SketchyInput({
             )}
           />
           <input
-            type={type}
+            type={inputType}
             name={name}
             placeholder={placeholder}
             value={value}
             onChange={onChange}
             className="w-full bg-transparent border-none outline-none text-slate-800 placeholder:text-slate-400 font-medium md:text-lg"
           />
+          {isPassword && (
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="ml-2 text-slate-400 hover:text-slate-600 focus:outline-none"
+            >
+              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
+          )}
         </div>
       </div>
 
@@ -198,7 +211,7 @@ export default function LoginPage(): React.ReactElement {
       <SquiggleFilter />
       <GraphPaper />
 
-      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-6 backdrop-blur-sm">
+      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-6">
         <Link
           href="/"
           className="flex items-center gap-2 text-xl font-black tracking-tighter hover:scale-105 transition-transform"
@@ -301,6 +314,15 @@ export default function LoginPage(): React.ReactElement {
             </form>
 
             <div className="mt-8 text-center text-sm font-medium text-slate-600">
+              <Link
+                href="/forgot-password"
+                className="font-bold text-slate-500 hover:text-slate-700 decoration-wavy hover:underline underline-offset-4"
+              >
+                Forgot your password?
+              </Link>
+            </div>
+
+            <div className="mt-3 text-center text-sm font-medium text-slate-600">
               New here?{" "}
               <Link
                 href="/register"

@@ -18,8 +18,7 @@ export default function SketchyPage() {
       <SquiggleFilter />
       <GraphPaper />
 
-      {/* Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-6 backdrop-blur-sm">
+      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-6">
         <div className="flex items-center gap-2 text-xl font-black tracking-tighter">
           <div className="h-8 w-8 rounded border-2 border-slate-900 bg-slate-800" />
           AskMyNotes.

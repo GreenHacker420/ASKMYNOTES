@@ -30,7 +30,7 @@ export function HowItWorks() {
     ];
 
     return (
-        <section ref={ref} className="relative z-10 py-24 px-4">
+        <section id="how-it-works" ref={ref} className="relative z-10 py-24 px-4">
             <motion.div
                 className="max-w-4xl mx-auto"
                 initial={{ opacity: 0 }}

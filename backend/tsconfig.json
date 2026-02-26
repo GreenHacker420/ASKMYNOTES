@@ -1,16 +1,21 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "CommonJS",
-    "moduleResolution": "Node",
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "jsx": "react-jsx",
     "skipLibCheck": true,
-    "outDir": "dist",
-    "rootDir": ".",
-    "types": ["node"]
+    "noEmit": true,
+    "types": [
+      "node"
+    ]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "api/**/*.ts"
+  ]
 }

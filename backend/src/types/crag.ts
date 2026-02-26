@@ -33,7 +33,15 @@ export interface CragFoundResponse {
   found: true;
 }
 
-export type CragResponse = CragFoundResponse | string;
+export interface CragNotFoundResponse {
+  answer: string;
+  citations: [];
+  confidence: "Low";
+  evidence: [];
+  found: false;
+}
+
+export type CragResponse = CragFoundResponse | CragNotFoundResponse;
 
 export interface AskRequest {
   question: string;

@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { z } from "zod";
 import type { CragPipelineService } from "../services/crag/CragPipelineService";
 import type { SubjectRepository } from "../services/prisma/SubjectRepository";
+import type { AuthenticatedRequest } from "../services/auth/requireAuth";
 
 const askSchema = z.object({
   question: z.string().min(1),
@@ -30,8 +31,15 @@ export class AskController {
         return;
       }
 
+      const typedReq = req as AuthenticatedRequest;
+      const userId = typedReq.authUser?.id;
+      if (!userId) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+
       const payload = parsed.data;
-      const subject = await this.options.subjectRepository.findById(payload.subjectId);
+      const subject = await this.options.subjectRepository.findById(payload.subjectId, userId);
       if (!subject) {
         res.status(404).json({ error: "Subject not found" });
         return;
@@ -43,11 +51,6 @@ export class AskController {
         threadId: payload.threadId,
         subjectName: payload.subjectName ?? subject.name
       });
-
-      if (typeof response === "string") {
-        res.status(200).type("text/plain").send(response);
-        return;
-      }
 
       res.status(200).json(response);
     } catch (error) {

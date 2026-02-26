@@ -62,7 +62,7 @@ export function Hero() {
                         Get Started <ArrowRight size={18} />
                     </SketchButton>
                 </Link>
-                <button className="px-6 py-3 font-mono text-sm font-bold text-slate-500 underline decoration-wavy underline-offset-4 hover:text-slate-900">
+                <button onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })} className="px-6 py-3 font-mono text-sm font-bold text-slate-500 underline decoration-wavy underline-offset-4 hover:text-slate-900">
                     How It Works
                 </button>
             </div>

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { basename } from "node:path";
 import { readFile } from "node:fs/promises";
 import type { Pinecone } from "@pinecone-database/pinecone";
-import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai"; 
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { PDFParse } from "pdf-parse";
 import type { PrismaClient } from "../../../generated/prisma/client";
 
@@ -26,6 +26,7 @@ export interface IngestPdfInput {
   subjectId: string;
   subjectName: string;
   filePath: string;
+  userId: string;
 }
 
 export interface IngestPdfResult {
@@ -82,7 +83,7 @@ export class PdfIngestionService {
     await this.prisma.subject.upsert({
       where: { id: input.subjectId },
       update: { name: input.subjectName },
-      create: { id: input.subjectId, name: input.subjectName }
+      create: { id: input.subjectId, name: input.subjectName, userId: input.userId }
     });
 
     const vectors = await this.embeddings.embedDocuments(chunks.map((chunk) => chunk.text));

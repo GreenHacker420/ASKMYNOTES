@@ -8,15 +8,16 @@
     "email": "harsh@greenhacker.in"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "dev": "ts-node src/server.ts",
+    "build": "prisma generate && tsup src/server.ts --format esm --target node20 --outDir dist --clean --sourcemap",
+    "dev": "tsx src/server.ts",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "checkpointer:setup": "ts-node src/scripts/setupCheckpointer.ts",
+    "checkpointer:setup": "tsx src/scripts/setupCheckpointer.ts",
     "better-auth:generate": "better-auth generate --config src/auth.ts --yes",
-    "ingest:pdf:query": "ts-node src/scripts/ingestAndQueryPdf.ts",
+    "ingest:pdf:query": "tsx src/scripts/ingestAndQueryPdf.ts",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "postinstall": "npx prisma migrate deploy && npx prisma generate"
   },
   "dependencies": {
     "@better-auth/cli": "^1.4.19",
@@ -31,8 +32,11 @@
     "@react-email/components": "^1.0.8",
     "@react-email/render": "^2.0.4",
     "better-auth": "^1.4.19",
+    "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
     "nodemailer": "^8.0.1",
     "pdf-parse": "^2.4.5",
     "react": "^19.2.4",
@@ -41,6 +45,7 @@
   },
   "devDependencies": {
     "@better-auth/cli": "^1.4.19",
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.3.1",
     "@types/nodemailer": "^7.0.11",
@@ -48,6 +53,8 @@
     "@types/react-dom": "^19.2.3",
     "prisma": "^7.4.1",
     "ts-node": "^10.9.2",
+    "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }
