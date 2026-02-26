@@ -9,6 +9,7 @@ import type { AppEnv } from "./config/env";
 import { loadAppEnv } from "./config/env";
 import { AskController } from "./controllers/AskController";
 import { IngestionController } from "./controllers/IngestionController";
+import { MeController } from "./controllers/MeController";
 import { SubjectController } from "./controllers/SubjectController";
 import { CragPipelineService } from "./services/crag/CragPipelineService";
 import { NotesIngestionService } from "./services/ingestion/NotesIngestionService";
@@ -96,6 +97,7 @@ export function createApp(envInput?: AppEnv): AppBootstrap {
     cragPipeline,
     subjectRepository
   });
+  const meController = new MeController();
   const geminiLiveClient = new GeminiLiveClient({
     apiKey: env.googleApiKey,
     transcriptionModel: process.env.GEMINI_LIVE_TRANSCRIBE_MODEL,
@@ -167,7 +169,8 @@ export function createApp(envInput?: AppEnv): AppBootstrap {
       {
         askController,
         subjectController,
-        ingestionController
+        ingestionController,
+        meController
       },
       requireAuth
     )
@@ -182,6 +185,7 @@ export function createApp(envInput?: AppEnv): AppBootstrap {
         "POST /api/subjects",
         "GET /api/subjects/:subjectId/files",
         "POST /api/subjects/:subjectId/files",
+        "GET /api/me",
         "POST /api/ask",
         "POST /api/ask/stream",
         "ALL /api/auth/*"

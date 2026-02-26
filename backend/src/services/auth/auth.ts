@@ -8,6 +8,7 @@ export interface BetterAuthEnv {
   betterAuthSecret: string;
   betterAuthUrl: string;
   betterAuthTrustedOrigins: string[];
+  frontendUrl?: string;
   smtpHost: string;
   smtpPort: number;
   smtpSecure: boolean;
@@ -44,13 +45,19 @@ export function createBetterAuth(prisma: PrismaClient, env: BetterAuthEnv) {
       }
       : undefined;
 
+  const trustedOrigins = new Set(env.betterAuthTrustedOrigins);
+  if (env.frontendUrl) {
+    trustedOrigins.add(env.frontendUrl);
+  }
+
   return betterAuth({
     secret: env.betterAuthSecret,
     baseURL: env.betterAuthUrl,
-    trustedOrigins: env.betterAuthTrustedOrigins,
+    trustedOrigins: Array.from(trustedOrigins),
     database: prismaAdapter(prisma, {
       provider: "postgresql"
     }),
+
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,

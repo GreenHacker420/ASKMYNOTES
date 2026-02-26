@@ -7,6 +7,7 @@ export const BACKEND_ROUTES = {
   subjects: "/api/subjects",
   subjectFiles: (subjectId: string) => `/api/subjects/${subjectId}/files`,
   voiceQuery: "/api/voice/query",
+  me: "/api/me",
   authBase: "/api/auth"
 } as const;
 
@@ -168,6 +169,14 @@ export interface SubjectFileRecord {
   lastIngestedAt: string | null;
 }
 
+export interface MeProfile {
+  user: {
+    id: string;
+    email: string;
+    name: string;
+  };
+}
+
 export async function getSubjectsAction(): Promise<ActionResult<{ subjects: SubjectRecord[] }>> {
   try {
     const response = await callBackend(BACKEND_ROUTES.subjects, {
@@ -325,6 +334,24 @@ export async function voiceQueryAction(
       status: 500,
       error: "Failed to reach backend."
     };
+  }
+}
+
+export async function getMeAction(): Promise<ActionResult<MeProfile>> {
+  try {
+    const response = await callBackend(BACKEND_ROUTES.me, {
+      method: "GET"
+    });
+
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      return { ok: false, status: response.status, error: errorMsg };
+    }
+
+    const data = (await response.json()) as MeProfile;
+    return { ok: true, status: response.status, data };
+  } catch {
+    return { ok: false, status: 500, error: "Network error" };
   }
 }
 

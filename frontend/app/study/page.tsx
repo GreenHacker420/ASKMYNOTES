@@ -2,6 +2,7 @@
 
 import React, { useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { LogOut, FileText, MessageSquare, Brain, BookOpen, Mic } from "lucide-react";
 import { SquiggleFilter } from "@/src/components/CoreLandingPages/CompleteLandingPages/tsx/SquiggleFilter";
@@ -30,6 +31,7 @@ import {
   createSubjectAction,
   uploadFileAction,
   getSubjectFilesAction,
+  getMeAction,
   type AskResponsePayload
 } from "@/src/lib/actions";
 import { getSocket } from "@/src/lib/socket";
@@ -165,6 +167,7 @@ const TABS: { key: DashboardTab; label: string; icon: React.ElementType }[] = [
 // ── Dashboard Page ──
 
 export default function DashboardPage() {
+  const router = useRouter();
   // Global Store State
   const {
     subjects,
@@ -192,6 +195,16 @@ export default function DashboardPage() {
   const selectedSubject = subjects.find((s: Subject) => s.id === selectedId) ?? null;
 
   // ── Initialization ──
+  React.useEffect(() => {
+    async function checkSession() {
+      const res = await getMeAction();
+      if (!res.ok) {
+        router.push("/login");
+      }
+    }
+    checkSession();
+  }, [router]);
+
   React.useEffect(() => {
     async function fetchSubjects() {
       const res = await getSubjectsAction();
@@ -322,9 +335,13 @@ export default function DashboardPage() {
       };
       addSubject(newSubject);
     } else {
+      if (res.status === 401) {
+        router.push("/login");
+        return;
+      }
       alert(`Failed to create subject: ${res.error}`);
     }
-  }, [subjects.length, addSubject]);
+  }, [subjects.length, addSubject, router]);
 
   const handleUploadFiles = useCallback(async (subjectId: string, droppingFiles: UploadedFile[]) => {
     const currentSubject = subjects.find((s: Subject) => s.id === subjectId);
