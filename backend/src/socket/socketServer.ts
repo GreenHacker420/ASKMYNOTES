@@ -148,6 +148,9 @@ export function createSocketServer(options: SocketServerOptions): Server {
 
         const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY ?? process.env.GEMINI_API_KEY ?? "" });
 
+        // Accumulate input transcript chunks across messages
+        let pendingTranscript = "";
+
         liveSession = await ai.live.connect({
           model: process.env.GEMINI_LIVE_AUDIO_MODEL ?? "gemini-2.5-flash-native-audio-preview-12-2025",
           config: {
@@ -162,15 +165,18 @@ export function createSocketServer(options: SocketServerOptions): Server {
               }
             },
             systemInstruction:
-              "You are a patient teacher. Do not answer user audio directly. Wait for messages that start with 'ANSWER:' and speak that text clearly. After each answer, end with a short check-in question."
+              `You are a friendly, patient voice tutor for the subject "${parsed.data.subjectName ?? subject.name}". ` +
+              "When the user speaks, you will receive their question as text. " +
+              "Read the provided answer text naturally and clearly as spoken language. " +
+              "After each answer, ask a brief follow-up question to check understanding."
           },
           callbacks: {
             onopen: () => {
               console.log("[voice] live session opened", socket.id);
             },
             onmessage: async (message) => {
-              const hasTranscript = !!message.serverContent?.inputTranscription?.text;
-              const hasOutputTranscript = !!message.serverContent?.outputTranscription?.text;
+              const transcriptChunk = message.serverContent?.inputTranscription?.text ?? "";
+              const outputTranscriptChunk = message.serverContent?.outputTranscription?.text ?? "";
               const audioParts = message.serverContent?.modelTurn?.parts?.filter(
                 (p) => p.inlineData?.data
               ) ?? [];
@@ -179,24 +185,24 @@ export function createSocketServer(options: SocketServerOptions): Server {
 
               console.log("[voice] onmessage", {
                 socketId: socket.id,
-                hasInputTranscript: hasTranscript,
-                hasOutputTranscript,
+                transcriptChunk: transcriptChunk || "(none)",
+                outputChunk: outputTranscriptChunk || "(none)",
                 audioChunks: audioParts.length,
                 turnComplete: hasTurnComplete,
-                genComplete: hasGenComplete
+                genComplete: hasGenComplete,
+                pendingTranscript: pendingTranscript || "(empty)"
               });
 
-              // Forward input transcription
-              if (message.serverContent?.inputTranscription?.text) {
-                socket.emit("voice:transcript", {
-                  text: message.serverContent.inputTranscription.text
-                });
+              // Accumulate input transcription chunks
+              if (transcriptChunk) {
+                pendingTranscript += transcriptChunk;
+                socket.emit("voice:transcript", { text: pendingTranscript });
               }
 
-              // Forward output transcription
-              if (message.serverContent?.outputTranscription?.text) {
+              // Forward output transcription (strip "ANSWER:" prefix if present)
+              if (outputTranscriptChunk) {
                 socket.emit("voice:output-transcript", {
-                  text: message.serverContent.outputTranscription.text
+                  text: outputTranscriptChunk
                 });
               }
 
@@ -213,6 +219,7 @@ export function createSocketServer(options: SocketServerOptions): Server {
               // Handle interruptions
               if (message.serverContent?.interrupted) {
                 console.log("[voice] interrupted, clearing playback");
+                pendingTranscript = "";
                 socket.emit("voice:interrupted", {});
               }
 
@@ -220,30 +227,39 @@ export function createSocketServer(options: SocketServerOptions): Server {
                 socket.emit("voice:final", {});
               }
 
-              // When user's speech transcription completes, run CRAG and feed answer back
-              if (hasTurnComplete && message.serverContent?.inputTranscription?.text) {
-                const question = message.serverContent.inputTranscription.text.trim();
-                if (!question || !liveSession) return;
+              // When the user's turn completes, run CRAG with accumulated transcript
+              if (hasTurnComplete && pendingTranscript.trim()) {
+                const question = pendingTranscript.trim();
+                pendingTranscript = ""; // Reset for next turn
+
+                if (!liveSession) return;
 
                 console.log("[voice] running CRAG for:", question);
 
-                const askRequest: AskRequest = {
-                  question,
-                  subjectId: parsed.data.subjectId,
-                  threadId: parsed.data.threadId,
-                  subjectName: parsed.data.subjectName ?? subject.name
-                };
-                const response = await options.cragPipeline.ask(askRequest);
-                socket.emit("voice:answer", { text: response.answer });
-                console.log("[voice] sending ANSWER to live session, length:", response.answer.length);
+                try {
+                  const askRequest: AskRequest = {
+                    question,
+                    subjectId: parsed.data.subjectId,
+                    threadId: parsed.data.threadId,
+                    subjectName: parsed.data.subjectName ?? subject.name
+                  };
+                  const response = await options.cragPipeline.ask(askRequest);
+                  socket.emit("voice:answer", { text: response.answer });
+                  console.log("[voice] sending CRAG answer to live session, length:", response.answer.length);
 
-                const answer = `ANSWER: ${response.answer}`;
-                liveSession.sendClientContent({
-                  turns: [
-                    { role: "user", parts: [{ text: answer }] }
-                  ],
-                  turnComplete: true
-                });
+                  // Feed the CRAG answer to the model so it speaks it
+                  if (liveSession) {
+                    liveSession.sendClientContent({
+                      turns: [
+                        { role: "user", parts: [{ text: `Here is the answer to read to the student: ${response.answer}` }] }
+                      ],
+                      turnComplete: true
+                    });
+                  }
+                } catch (err) {
+                  console.error("[voice] CRAG failed:", err);
+                  socket.emit("voice:error", { error: "Failed to get answer from notes" });
+                }
               }
             },
             onerror: (e) => {
@@ -262,9 +278,8 @@ export function createSocketServer(options: SocketServerOptions): Server {
 
         // Send initial greeting for the model to speak
         if (liveSession) {
-          const greeting = `ANSWER: Hi! I'm your ${parsed.data.subjectName ?? subject.name} tutor. Ask me anything about your notes.`;
           liveSession.sendClientContent({
-            turns: [{ role: "user", parts: [{ text: greeting }] }],
+            turns: [{ role: "user", parts: [{ text: `Greet the student briefly. Tell them you're their ${parsed.data.subjectName ?? subject.name} tutor and they can ask questions about their notes.` }] }],
             turnComplete: true
           });
         }
