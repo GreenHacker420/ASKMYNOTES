@@ -1,25 +1,29 @@
 "use client";
 
 import React from "react";
-import { motion } from "framer-motion";
+import { motion, type HTMLMotionProps } from "framer-motion";
 import { cn } from "@/src/lib/utils";
 
 // Hand-drawn style button with SVG border and hover highlight
 export function SketchButton({
     children,
     className,
-}: {
-    children: React.ReactNode;
-    className?: string;
-}) {
+    type = "button",
+    ...buttonProps
+}: HTMLMotionProps<"button">) {
+    const content = children as React.ReactNode;
+
     return (
         <motion.button
+            type={type}
             whileHover={{ scale: 1.05, rotate: -1 }}
             whileTap={{ scale: 0.95, rotate: 1 }}
             className={cn(
                 "relative px-8 py-3 font-bold text-slate-800 transition-colors group",
+                buttonProps.disabled ? "opacity-60 cursor-not-allowed" : "",
                 className
             )}
+            {...buttonProps}
         >
             {/* The Button Border (SVG for perfect stroke control) */}
             <div className="absolute inset-0 h-full w-full" style={{ filter: "url(#squiggle)" }}>
@@ -44,7 +48,7 @@ export function SketchButton({
                 style={{ filter: "url(#squiggle)" }}
             />
 
-            <span className="relative z-10 flex items-center gap-2">{children}</span>
+            <span className="relative z-10 flex items-center gap-2">{content}</span>
         </motion.button>
     );
 }
