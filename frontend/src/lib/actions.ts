@@ -1,6 +1,6 @@
 import type { MCQ, ShortAnswer } from "../components/dashboard/types";
 
-const DEFAULT_BACKEND_BASE_URL = "http://localhost:3001";
+const DEFAULT_BACKEND_BASE_URL = "http://localhost:3000";
 
 export const BACKEND_ROUTES = {
   health: "/health",
@@ -60,6 +60,12 @@ export interface ActionResult<T> {
 }
 
 function normalizeBackendBaseUrl(): string {
+  // If in browser, use relative path so Next.js rewrites can kick in
+  if (typeof window !== "undefined") {
+    return "";
+  }
+
+  // If server-side rendering, hitting the backend directly is needed
   const raw = process.env.NEXT_PUBLIC_BACKEND_URL ?? DEFAULT_BACKEND_BASE_URL;
   return raw.endsWith("/") ? raw.slice(0, -1) : raw;
 }

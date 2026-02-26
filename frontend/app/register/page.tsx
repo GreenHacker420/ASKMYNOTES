@@ -111,9 +111,12 @@ function SketchyInput({
 }
 
 import { useRegisterStore } from "@/src/store/useRegisterStore";
+import { useAuth } from "@/src/contexts/AuthContext";
 
-export default function RegisterPage(): React.ReactElement {
+export default function RegisterPage(): React.ReactElement | null {
   const router = useRouter();
+  const { user, isLoading } = useAuth();
+
   const {
     formData,
     setFormData,
@@ -128,6 +131,16 @@ export default function RegisterPage(): React.ReactElement {
     successMessage,
     setSuccessMessage
   } = useRegisterStore();
+
+  React.useEffect(() => {
+    if (!isLoading && user) {
+      router.push("/study");
+    }
+  }, [user, isLoading, router]);
+
+  if (isLoading || user) {
+    return null;
+  }
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
     const { name, value } = event.target;

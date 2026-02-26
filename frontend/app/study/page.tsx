@@ -154,6 +154,7 @@ function generateMockQuiz(subjectName: string): StudyQuiz {
 }
 
 import { useStudyStore } from "@/src/store/useStudyStore";
+import { useAuth } from "@/src/contexts/AuthContext";
 
 // ── Tab Configuration ──
 
@@ -168,6 +169,8 @@ const TABS: { key: DashboardTab; label: string; icon: React.ElementType }[] = [
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { user, isLoading } = useAuth();
+
   // Global Store State
   const {
     subjects,
@@ -196,14 +199,10 @@ export default function DashboardPage() {
 
   // ── Initialization ──
   React.useEffect(() => {
-    async function checkSession() {
-      const { data, error } = await authClient.getSession();
-      if (error || !data || !data.user) {
-        router.push("/login");
-      }
+    if (!isLoading && !user) {
+      router.push("/login");
     }
-    checkSession();
-  }, [router]);
+  }, [user, isLoading, router]);
 
   React.useEffect(() => {
     async function fetchSubjects() {
@@ -484,6 +483,15 @@ export default function DashboardPage() {
     }
   }, [setStudyQuiz, setIsQuizGenerating]);
 
+  if (isLoading || !user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#fdfbf7]">
+        <div className="text-xl font-bold animate-pulse text-slate-800">
+          Loading...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <main className="relative h-screen w-full text-slate-800 overflow-hidden font-sans selection:bg-yellow-300 selection:text-black flex flex-col">
