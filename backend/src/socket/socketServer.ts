@@ -6,7 +6,7 @@ import type { BetterAuthInstance } from "../services/auth/auth";
 import type { CragPipelineService } from "../services/crag/CragPipelineService";
 import type { SubjectRepository } from "../services/prisma/SubjectRepository";
 import type { AskRequest } from "../types/crag";
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI, Modality, Type } from "@google/genai";
 
 const askSchema = z.object({
   question: z.string().min(1),
@@ -57,42 +57,51 @@ export function createSocketServer(options: SocketServerOptions): Server {
     }
   });
 
+  /* ------------------------------------------------------------------ */
+  /*  CRAG function declaration for Gemini Live API tool use            */
+  /* ------------------------------------------------------------------ */
+  const searchNotesFunction = {
+    name: "search_notes",
+    description: "Search the student's uploaded notes and documents to find relevant information for answering their question. Always use this tool when the student asks a question about their study material.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        query: {
+          type: Type.STRING,
+          description: "The search query to find relevant information in the student's notes"
+        }
+      },
+      required: ["query"]
+    }
+  };
+
   io.on("connection", (socket) => {
     const userId = socket.data.authUser?.id as string | undefined;
     if (!userId) {
       socket.disconnect(true);
       return;
     }
-    // eslint-disable-next-line no-console
-    console.log("[voice] socket connected", socket.id);
+    console.log("[socket] connected", socket.id);
 
-    let liveSession: {
-      sendRealtimeInput: (input: Record<string, unknown>) => void;
-      sendClientContent: (content: Record<string, unknown>) => void;
-      close: () => void;
-    } | null = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let liveSession: any = null;
     let liveReady = false;
     let liveSessionInfo: { subjectId: string; threadId: string } | null = null;
 
+    /* ---- Chat (text) handler ---- */
     socket.on("ask", async (payload) => {
       const parsed = askSchema.safeParse(payload);
       const requestId = parsed.success ? parsed.data.requestId : undefined;
 
       if (!parsed.success) {
-        socket.emit("ask:error", {
-          requestId,
-          error: "Invalid request"
-        });
+        socket.emit("ask:error", { requestId, error: "Invalid request" });
         return;
       }
 
       try {
         const subject = await options.subjectRepository.findById(parsed.data.subjectId, userId);
         if (!subject) {
-          socket.emit("ask:error", {
-            requestId,
-            error: "Subject not found"
-          });
+          socket.emit("ask:error", { requestId, error: "Subject not found" });
           return;
         }
 
@@ -105,15 +114,9 @@ export function createSocketServer(options: SocketServerOptions): Server {
 
         for await (const event of options.cragPipeline.askStream(askRequest)) {
           if (event.type === "chunk") {
-            socket.emit("ask:chunk", {
-              requestId,
-              delta: event.delta
-            });
+            socket.emit("ask:chunk", { requestId, delta: event.delta });
           } else if (event.type === "final") {
-            socket.emit("ask:final", {
-              requestId,
-              response: event.response
-            });
+            socket.emit("ask:final", { requestId, response: event.response });
           }
         }
       } catch (error) {
@@ -124,6 +127,7 @@ export function createSocketServer(options: SocketServerOptions): Server {
       }
     });
 
+    /* ---- Voice session start ---- */
     socket.on("voice:start", async (payload) => {
       const parsed = voiceStartSchema.safeParse(payload);
       if (!parsed.success) {
@@ -145,11 +149,9 @@ export function createSocketServer(options: SocketServerOptions): Server {
           return;
         }
         liveSessionInfo = { subjectId: parsed.data.subjectId, threadId: parsed.data.threadId };
+        const subjectName = parsed.data.subjectName ?? subject.name;
 
         const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY ?? process.env.GEMINI_API_KEY ?? "" });
-
-        // Accumulate input transcript chunks across messages
-        let pendingTranscript = "";
 
         liveSession = await ai.live.connect({
           model: process.env.GEMINI_LIVE_AUDIO_MODEL ?? "gemini-2.5-flash-native-audio-preview-12-2025",
@@ -164,49 +166,108 @@ export function createSocketServer(options: SocketServerOptions): Server {
                 }
               }
             },
+            tools: [{ functionDeclarations: [searchNotesFunction] }],
             systemInstruction:
-              `You are a friendly, patient voice tutor for the subject "${parsed.data.subjectName ?? subject.name}". ` +
-              "When the user speaks, you will receive their question as text. " +
-              "Read the provided answer text naturally and clearly as spoken language. " +
-              "After each answer, ask a brief follow-up question to check understanding."
+              `You are a voice tutor for the subject "${subjectName}". ` +
+              "CRITICAL RULES: " +
+              "1. You MUST call the search_notes tool for EVERY question the student asks. No exceptions. " +
+              "2. You are FORBIDDEN from answering any question using your own knowledge. You can ONLY use information returned by search_notes. " +
+              "3. If search_notes returns no results or an error, say: 'I couldn't find that in your notes. Could you rephrase your question?' " +
+              "4. After EVERY answer, you MUST ask: 'Did that make sense? Would you like me to go deeper into any part?' " +
+              "5. Explain the search results clearly and naturally as spoken language. Keep answers concise. " +
+              "6. Always speak in English. " +
+              "7. For greetings and casual conversation, respond naturally without calling the tool."
           },
           callbacks: {
             onopen: () => {
               console.log("[voice] live session opened", socket.id);
             },
-            onmessage: async (message) => {
+            onmessage: async (message: any) => {
+              /* ---------- Handle tool calls (CRAG function calling) ---------- */
+              if (message.toolCall) {
+                console.log("[voice] toolCall received", {
+                  socketId: socket.id,
+                  calls: message.toolCall.functionCalls?.map((fc: any) => ({
+                    name: fc.name,
+                    args: fc.args
+                  }))
+                });
+
+                const functionResponses: Array<{
+                  id: string;
+                  name: string;
+                  response: Record<string, unknown>;
+                }> = [];
+
+                for (const fc of message.toolCall.functionCalls ?? []) {
+                  if (fc.name === "search_notes" && liveSessionInfo) {
+                    const query = fc.args?.query ?? "";
+                    console.log("[voice] running CRAG for:", query);
+
+                    try {
+                      const askRequest: AskRequest = {
+                        question: query,
+                        subjectId: liveSessionInfo.subjectId,
+                        threadId: liveSessionInfo.threadId,
+                        subjectName
+                      };
+                      const response = await options.cragPipeline.ask(askRequest);
+                      console.log("[voice] CRAG result length:", response.answer.length);
+
+                      socket.emit("voice:answer", { text: response.answer });
+
+                      functionResponses.push({
+                        id: fc.id,
+                        name: fc.name,
+                        response: { result: response.answer }
+                      });
+                    } catch (err) {
+                      console.error("[voice] CRAG failed:", err);
+                      functionResponses.push({
+                        id: fc.id,
+                        name: fc.name,
+                        response: { error: "Failed to search notes. Please try again." }
+                      });
+                    }
+                  }
+                }
+
+                if (functionResponses.length > 0 && liveSession) {
+                  console.log("[voice] sending tool response");
+                  liveSession.sendToolResponse({ functionResponses });
+                }
+                return;
+              }
+
+              /* ---------- Handle regular server content ---------- */
               const transcriptChunk = message.serverContent?.inputTranscription?.text ?? "";
               const outputTranscriptChunk = message.serverContent?.outputTranscription?.text ?? "";
-              const audioParts = message.serverContent?.modelTurn?.parts?.filter(
-                (p) => p.inlineData?.data
-              ) ?? [];
+              const audioParts = (message.serverContent?.modelTurn?.parts ?? []).filter(
+                (p: any) => p.inlineData?.data
+              );
               const hasTurnComplete = !!message.serverContent?.turnComplete;
               const hasGenComplete = !!message.serverContent?.generationComplete;
 
-              console.log("[voice] onmessage", {
-                socketId: socket.id,
-                transcriptChunk: transcriptChunk || "(none)",
-                outputChunk: outputTranscriptChunk || "(none)",
-                audioChunks: audioParts.length,
-                turnComplete: hasTurnComplete,
-                genComplete: hasGenComplete,
-                pendingTranscript: pendingTranscript || "(empty)"
-              });
-
-              // Accumulate input transcription chunks
-              if (transcriptChunk) {
-                pendingTranscript += transcriptChunk;
-                socket.emit("voice:transcript", { text: pendingTranscript });
-              }
-
-              // Forward output transcription (strip "ANSWER:" prefix if present)
-              if (outputTranscriptChunk) {
-                socket.emit("voice:output-transcript", {
-                  text: outputTranscriptChunk
+              // Log only when there's meaningful content
+              if (transcriptChunk || outputTranscriptChunk || audioParts.length || hasTurnComplete || hasGenComplete) {
+                console.log("[voice] onmessage", {
+                  socketId: socket.id,
+                  transcript: transcriptChunk || undefined,
+                  outputTranscript: outputTranscriptChunk || undefined,
+                  audioChunks: audioParts.length,
+                  turnComplete: hasTurnComplete || undefined,
+                  genComplete: hasGenComplete || undefined
                 });
               }
 
-              // Forward audio chunks
+              if (transcriptChunk) {
+                socket.emit("voice:transcript", { text: transcriptChunk });
+              }
+
+              if (outputTranscriptChunk) {
+                socket.emit("voice:output-transcript", { text: outputTranscriptChunk });
+              }
+
               for (const part of audioParts) {
                 if (part.inlineData?.data) {
                   socket.emit("voice:audio", {
@@ -216,83 +277,52 @@ export function createSocketServer(options: SocketServerOptions): Server {
                 }
               }
 
-              // Handle interruptions
               if (message.serverContent?.interrupted) {
-                console.log("[voice] interrupted, clearing playback");
-                pendingTranscript = "";
+                console.log("[voice] interrupted");
                 socket.emit("voice:interrupted", {});
               }
 
               if (hasTurnComplete || hasGenComplete) {
                 socket.emit("voice:final", {});
               }
-
-              // When the user's turn completes, run CRAG with accumulated transcript
-              if (hasTurnComplete && pendingTranscript.trim()) {
-                const question = pendingTranscript.trim();
-                pendingTranscript = ""; // Reset for next turn
-
-                if (!liveSession) return;
-
-                console.log("[voice] running CRAG for:", question);
-
-                try {
-                  const askRequest: AskRequest = {
-                    question,
-                    subjectId: parsed.data.subjectId,
-                    threadId: parsed.data.threadId,
-                    subjectName: parsed.data.subjectName ?? subject.name
-                  };
-                  const response = await options.cragPipeline.ask(askRequest);
-                  socket.emit("voice:answer", { text: response.answer });
-                  console.log("[voice] sending CRAG answer to live session, length:", response.answer.length);
-
-                  // Feed the CRAG answer to the model so it speaks it
-                  if (liveSession) {
-                    liveSession.sendClientContent({
-                      turns: [
-                        { role: "user", parts: [{ text: `Here is the answer to read to the student: ${response.answer}` }] }
-                      ],
-                      turnComplete: true
-                    });
-                  }
-                } catch (err) {
-                  console.error("[voice] CRAG failed:", err);
-                  socket.emit("voice:error", { error: "Failed to get answer from notes" });
-                }
-              }
             },
-            onerror: (e) => {
+            onerror: (e: any) => {
               console.error("[voice] live API error", e);
               socket.emit("voice:error", { error: e?.message ?? "Voice error" });
             },
-            onclose: (e) => {
+            onclose: (e: any) => {
               console.log("[voice] live session closed", e?.reason ?? "no reason");
+              liveReady = false;
             }
           }
         });
 
         liveReady = true;
-        console.log("[voice] session ready, sending greeting");
+        console.log("[voice] session ready with search_notes tool");
         socket.emit("voice:ready");
 
-        // Send initial greeting for the model to speak
+        // Greeting — model will speak naturally
         if (liveSession) {
           liveSession.sendClientContent({
-            turns: [{ role: "user", parts: [{ text: `Greet the student briefly. Tell them you're their ${parsed.data.subjectName ?? subject.name} tutor and they can ask questions about their notes.` }] }],
+            turns: [{
+              role: "user",
+              parts: [{ text: `Greet the student briefly. Tell them you are their ${subjectName} tutor and you'll search their notes to answer questions. Keep it to one sentence.` }]
+            }],
             turnComplete: true
           });
         }
       } catch (error) {
         console.error("[voice] start failed", error);
-        socket.emit("voice:error", { error: error instanceof Error ? error.message : "Voice start failed" });
+        socket.emit("voice:error", {
+          error: error instanceof Error ? error.message : "Voice start failed"
+        });
       }
     });
 
+    /* ---- Voice audio streaming ---- */
     socket.on("voice:audio", (payload) => {
       if (!liveSession || !liveReady) return;
 
-      // Handle audioStreamEnd (user stopped recording, flush buffered audio)
       if (payload?.audioStreamEnd) {
         console.log("[voice] audioStreamEnd", socket.id);
         liveSession.sendRealtimeInput({ audioStreamEnd: true });
@@ -308,22 +338,27 @@ export function createSocketServer(options: SocketServerOptions): Server {
       });
     });
 
+    /* ---- Voice session stop ---- */
     socket.on("voice:stop", () => {
-      if (!liveSession) return;
       console.log("[voice] stop session", socket.id);
-      liveSession.sendRealtimeInput({ audioStreamEnd: true });
-      liveSession.close();
-      liveSession = null;
-      liveReady = false;
-    });
-
-    socket.on("disconnect", () => {
-      console.log("[voice] socket disconnected", socket.id);
       if (liveSession) {
-        liveSession.close();
+        try { liveSession.close(); } catch { /* ignore */ }
       }
       liveSession = null;
       liveReady = false;
+      liveSessionInfo = null;
+      socket.emit("voice:ended");
+    });
+
+    /* ---- Socket disconnect ---- */
+    socket.on("disconnect", () => {
+      console.log("[socket] disconnected", socket.id);
+      if (liveSession) {
+        try { liveSession.close(); } catch { /* ignore */ }
+      }
+      liveSession = null;
+      liveReady = false;
+      liveSessionInfo = null;
     });
   });
 

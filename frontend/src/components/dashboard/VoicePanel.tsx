@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, Volume2, Sparkles, User, GraduationCap } from "lucide-react";
+import { Mic, MicOff, Volume2, Sparkles, User, GraduationCap, X } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import { useStudyStore } from "@/src/store/useStudyStore";
 import type { Subject } from "@/src/components/dashboard/types";
@@ -186,6 +186,23 @@ export function VoicePanel() {
         }
     };
 
+    /* ---- end session fully ---- */
+    const endSession = useCallback(() => {
+        stopCapture();
+        getSocket().emit("voice:stop");
+        setVoiceActive(false);
+        setVoiceStatus("idle");
+        sessionStartedRef.current = false;
+        setMessages([]);
+        playbackQueueRef.current = [];
+        isPlayingRef.current = false;
+        nextPlayTimeRef.current = 0;
+        // Clear cached thread so next session starts fresh
+        if (selectedId) {
+            try { localStorage.removeItem(`voice-thread-${selectedId}`); } catch { /* ignore */ }
+        }
+    }, [selectedId, stopCapture, setVoiceActive, setVoiceStatus]);
+
     /* ---- socket event listeners ---- */
     useEffect(() => {
         const socket = getSocket();
@@ -197,10 +214,10 @@ export function VoicePanel() {
         const handleTranscript = (payload: { text: string }) => {
             if (!payload.text.trim()) return;
             setMessages((prev) => {
-                // Merge into the latest user message if it exists and is partial
+                // Append to the latest user message (accumulate transcript chunks)
                 const last = prev[prev.length - 1];
                 if (last && last.role === "user") {
-                    return [...prev.slice(0, -1), { ...last, text: payload.text }];
+                    return [...prev.slice(0, -1), { ...last, text: last.text + payload.text }];
                 }
                 return [...prev, { id: `user-${Date.now()}`, role: "user", text: payload.text }];
             });
@@ -208,12 +225,15 @@ export function VoicePanel() {
 
         const handleOutputTranscript = (payload: { text: string }) => {
             if (!payload.text.trim()) return;
+            // Strip any "ANSWER:" prefix the model might add
+            const cleaned = payload.text.replace(/^ANSWER:\s*/i, "");
+            if (!cleaned.trim()) return;
             setMessages((prev) => {
                 const last = prev[prev.length - 1];
                 if (last && last.role === "ai") {
-                    return [...prev.slice(0, -1), { ...last, text: last.text + payload.text }];
+                    return [...prev.slice(0, -1), { ...last, text: last.text + cleaned }];
                 }
-                return [...prev, { id: `ai-${Date.now()}`, role: "ai", text: payload.text }];
+                return [...prev, { id: `ai-${Date.now()}`, role: "ai", text: cleaned }];
             });
         };
 
@@ -262,6 +282,12 @@ export function VoicePanel() {
             ]);
         };
 
+        const handleEnded = () => {
+            setVoiceStatus("idle");
+            setVoiceActive(false);
+            sessionStartedRef.current = false;
+        };
+
         socket.on("voice:ready", handleReady);
         socket.on("voice:transcript", handleTranscript);
         socket.on("voice:output-transcript", handleOutputTranscript);
@@ -270,6 +296,7 @@ export function VoicePanel() {
         socket.on("voice:interrupted", handleInterrupted);
         socket.on("voice:answer", handleAnswer);
         socket.on("voice:error", handleError);
+        socket.on("voice:ended", handleEnded);
 
         return () => {
             socket.off("voice:ready", handleReady);
@@ -280,6 +307,7 @@ export function VoicePanel() {
             socket.off("voice:interrupted", handleInterrupted);
             socket.off("voice:answer", handleAnswer);
             socket.off("voice:error", handleError);
+            socket.off("voice:ended", handleEnded);
         };
     }, [isVoiceActive, playQueue]);
 
@@ -321,6 +349,16 @@ export function VoicePanel() {
                         )} />
                         {voiceStatus}
                     </div>
+
+                    {sessionStartedRef.current && (
+                        <button
+                            onClick={endSession}
+                            className="px-3 py-1.5 rounded-full border-2 border-red-400 bg-red-50 text-red-600 font-bold text-xs uppercase tracking-tight flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(239,68,68,0.5)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+                        >
+                            <X size={12} />
+                            End Session
+                        </button>
+                    )}
                 </div>
             </div>
 
