@@ -12,7 +12,8 @@ const io = createSocketServer({
   httpServer,
   auth: services.auth,
   cragPipeline: services.cragPipeline,
-  subjectRepository: services.subjectRepository
+  subjectRepository: services.subjectRepository,
+  threadRepository: services.threadRepository
 });
 
 app.locals.io = io;

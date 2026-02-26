@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { z } from "zod";
 import type { CragPipelineService } from "../services/crag/CragPipelineService";
 import type { SubjectRepository } from "../services/prisma/SubjectRepository";
+import type { ThreadRepository } from "../services/prisma/ThreadRepository";
 import type { AuthenticatedRequest } from "../services/auth/requireAuth";
 import type { AskRequest } from "../types/crag";
 import type { GeminiLiveClient } from "./geminiLiveClient";
@@ -17,6 +18,7 @@ const voiceJsonSchema = z.object({
 export interface VoiceControllerOptions {
   cragPipeline: CragPipelineService;
   subjectRepository: SubjectRepository;
+  threadRepository: ThreadRepository;
   geminiLiveClient: GeminiLiveClient;
 }
 
@@ -47,6 +49,8 @@ export class VoiceController {
         res.status(404).json({ error: "Subject not found" });
         return;
       }
+
+      await this.options.threadRepository.ensureThread(payload.threadId, payload.subjectId);
 
       const transcript = await this.options.geminiLiveClient.transcribeAudio({
         audioBuffer: payload.audioBuffer,

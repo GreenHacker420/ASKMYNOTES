@@ -46,6 +46,8 @@ export function VoicePanel() {
 
     const selectedSubject = subjects.find((s: Subject) => s.id === selectedId);
     const [messages, setMessages] = useState<VoiceMessage[]>([]);
+    const [voiceStage, setVoiceStage] = useState<string | null>(null);
+    const [isMuted, setIsMuted] = useState(false);
     const sessionStartedRef = useRef(false);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -57,9 +59,7 @@ export function VoicePanel() {
 
     /* ---- audio playback refs ---- */
     const playbackCtxRef = useRef<AudioContext | null>(null);
-    const playbackQueueRef = useRef<Int16Array[]>([]);
-    const isPlayingRef = useRef(false);
-    const nextPlayTimeRef = useRef(0);
+    const playbackWorkletRef = useRef<AudioWorkletNode | null>(null);
 
     /* ---- auto-scroll on new messages ---- */
     useEffect(() => {
@@ -79,7 +79,13 @@ export function VoicePanel() {
     /* ---- start/stop raw PCM capture via AudioWorklet ---- */
     const startCapture = useCallback(async () => {
         const stream = await navigator.mediaDevices.getUserMedia({
-            audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true }
+            audio: {
+                sampleRate: 16000,
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            }
         });
         captureStreamRef.current = stream;
 
@@ -119,41 +125,23 @@ export function VoicePanel() {
         captureCtxRef.current = null;
     }, []);
 
-    /* ---- gapless audio playback ---- */
-    const playQueue = useCallback(async () => {
+    /* ---- raw PCM playback via AudioWorklet ---- */
+    const ensurePlayback = useCallback(async () => {
         if (!playbackCtxRef.current) {
             playbackCtxRef.current = new AudioContext({ sampleRate: 24000 });
+            await playbackCtxRef.current.audioWorklet.addModule("/pcm-playback-processor.js");
+            playbackWorkletRef.current = new AudioWorkletNode(playbackCtxRef.current, "pcm-playback-processor");
+            playbackWorkletRef.current.connect(playbackCtxRef.current.destination);
         }
-        const ctx = playbackCtxRef.current;
-        isPlayingRef.current = true;
-
-        while (playbackQueueRef.current.length > 0) {
-            const chunk = playbackQueueRef.current.shift();
-            if (!chunk || chunk.length === 0) continue;
-
-            const buffer = ctx.createBuffer(1, chunk.length, 24000);
-            const channel = buffer.getChannelData(0);
-            for (let i = 0; i < chunk.length; i++) {
-                channel[i] = chunk[i] / 32768;
-            }
-
-            const source = ctx.createBufferSource();
-            source.buffer = buffer;
-            source.connect(ctx.destination);
-
-            // Schedule gaplessly
-            const now = ctx.currentTime;
-            const startAt = Math.max(now, nextPlayTimeRef.current);
-            source.start(startAt);
-            nextPlayTimeRef.current = startAt + buffer.duration;
-
-            // Wait for chunk to finish before processing next
-            await new Promise<void>((resolve) => {
-                source.onended = () => resolve();
-            });
+        if (playbackCtxRef.current.state === "suspended") {
+            await playbackCtxRef.current.resume();
         }
-        isPlayingRef.current = false;
     }, []);
+
+    const pushPlaybackPcm = useCallback(async (pcm: Int16Array) => {
+        await ensurePlayback();
+        playbackWorkletRef.current?.port.postMessage({ type: "data", pcm }, [pcm.buffer]);
+    }, [ensurePlayback]);
 
     /* ---- toggle voice on/off ---- */
     const toggleVoice = async () => {
@@ -197,11 +185,14 @@ export function VoicePanel() {
         getSocket().emit("voice:stop");
         setVoiceActive(false);
         setVoiceStatus("idle");
+        setVoiceStage(null);
         sessionStartedRef.current = false;
         setMessages([]);
-        playbackQueueRef.current = [];
-        isPlayingRef.current = false;
-        nextPlayTimeRef.current = 0;
+        playbackWorkletRef.current?.port.postMessage({ type: "clear" });
+        playbackWorkletRef.current?.disconnect();
+        playbackCtxRef.current?.close().catch(() => { });
+        playbackWorkletRef.current = null;
+        playbackCtxRef.current = null;
         // Clear cached thread so next session starts fresh
         if (selectedId) {
             try { localStorage.removeItem(`voice-thread-${selectedId}`); } catch { /* ignore */ }
@@ -245,13 +236,11 @@ export function VoicePanel() {
         const handleAudio = (payload: { data: string; mimeType: string }) => {
             if (!payload.data) return;
             setVoiceStatus("speaking");
+            if (isMuted) return;
             try {
                 const bytes = Uint8Array.from(atob(payload.data), (c) => c.charCodeAt(0));
                 const pcm = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2);
-                playbackQueueRef.current.push(pcm);
-                if (!isPlayingRef.current) {
-                    void playQueue();
-                }
+                void pushPlaybackPcm(pcm);
             } catch (err) {
                 console.warn("[voice] playback decode error", err);
             }
@@ -262,9 +251,7 @@ export function VoicePanel() {
         };
 
         const handleInterrupted = () => {
-            playbackQueueRef.current = [];
-            nextPlayTimeRef.current = 0;
-            isPlayingRef.current = false;
+            playbackWorkletRef.current?.port.postMessage({ type: "clear" });
             setVoiceStatus("listening");
         };
 
@@ -290,9 +277,22 @@ export function VoicePanel() {
             ]);
         };
 
+        const handleStatus = (payload: { stage?: string; detail?: string }) => {
+            const detail = payload.detail ?? payload.stage ?? null;
+            setVoiceStage(detail);
+            if (payload.stage === "speaking") {
+                setVoiceStatus("speaking");
+            } else if (payload.stage === "listening") {
+                setVoiceStatus("listening");
+            } else if (payload.stage) {
+                setVoiceStatus("processing");
+            }
+        };
+
         const handleError = (payload: { error: string }) => {
             console.error("[voice] error from server:", payload.error);
             setVoiceStatus("idle");
+            setVoiceStage(null);
             setMessages((prev) => [
                 ...prev,
                 { id: `err-${Date.now()}`, role: "ai", text: `⚠️ ${payload.error}` }
@@ -312,6 +312,7 @@ export function VoicePanel() {
         socket.on("voice:final", handleFinal);
         socket.on("voice:interrupted", handleInterrupted);
         socket.on("voice:answer", handleAnswer);
+        socket.on("voice:status", handleStatus);
         socket.on("voice:error", handleError);
         socket.on("voice:ended", handleEnded);
 
@@ -323,10 +324,11 @@ export function VoicePanel() {
             socket.off("voice:final", handleFinal);
             socket.off("voice:interrupted", handleInterrupted);
             socket.off("voice:answer", handleAnswer);
+            socket.off("voice:status", handleStatus);
             socket.off("voice:error", handleError);
             socket.off("voice:ended", handleEnded);
         };
-    }, [isVoiceActive, playQueue]);
+    }, [isVoiceActive, isMuted, pushPlaybackPcm]);
 
     if (!selectedId) return null;
 
@@ -369,6 +371,19 @@ export function VoicePanel() {
 
                     {sessionStartedRef.current && (
                         <button
+                            onClick={() => setIsMuted((prev) => !prev)}
+                            className={cn(
+                                "px-3 py-1.5 rounded-full border-2 font-bold text-xs uppercase tracking-tight flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all",
+                                isMuted ? "border-slate-400 bg-slate-50 text-slate-600" : "border-emerald-400 bg-emerald-50 text-emerald-700"
+                            )}
+                        >
+                            <Volume2 size={12} />
+                            {isMuted ? "Muted" : "Audio On"}
+                        </button>
+                    )}
+
+                    {sessionStartedRef.current && (
+                        <button
                             onClick={endSession}
                             className="px-3 py-1.5 rounded-full border-2 border-red-400 bg-red-50 text-red-600 font-bold text-xs uppercase tracking-tight flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(239,68,68,0.5)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
                         >
@@ -383,6 +398,12 @@ export function VoicePanel() {
             <div className="flex-1 flex flex-col p-6 overflow-hidden">
                 {/* Scrollable conversation history */}
                 <div className="flex-1 overflow-y-auto space-y-4 mb-6 pr-2">
+                    {voiceStage && (
+                        <div className="text-[11px] uppercase tracking-widest text-slate-500 font-bold bg-white border-2 border-slate-200 px-3 py-1 rounded-full inline-flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+                            AI: {voiceStage}
+                        </div>
+                    )}
                     {messages.length === 0 && (
                         <div className="flex flex-col items-center justify-center h-full text-slate-400">
                             <Mic size={48} className="mb-4 opacity-30" />

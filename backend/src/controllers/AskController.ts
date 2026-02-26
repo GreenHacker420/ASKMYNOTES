@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { z } from "zod";
 import type { CragPipelineService } from "../services/crag/CragPipelineService";
 import type { SubjectRepository } from "../services/prisma/SubjectRepository";
+import type { ThreadRepository } from "../services/prisma/ThreadRepository";
 import type { AuthenticatedRequest } from "../services/auth/requireAuth";
 import type { AskRequest } from "../types/crag";
 
@@ -15,6 +16,7 @@ const askSchema = z.object({
 export interface AskControllerOptions {
   cragPipeline: CragPipelineService;
   subjectRepository: SubjectRepository;
+  threadRepository: ThreadRepository;
 }
 
 // Text enters: /api/ask and /api/ask/stream -> AskController -> CragPipelineService.ask
@@ -100,6 +102,8 @@ export class AskController {
       res.status(404).json({ error: "Subject not found" });
       return null;
     }
+
+    await this.options.threadRepository.ensureThread(payload.threadId, payload.subjectId);
 
     return {
       question: payload.question,

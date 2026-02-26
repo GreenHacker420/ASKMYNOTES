@@ -20,6 +20,7 @@ import { PineconeClientFactory } from "./services/pinecone/PineconeClientFactory
 import { PostProcessor } from "./services/postprocess/PostProcessor";
 import { PromptBuilder } from "./services/prompt/PromptBuilder";
 import { SubjectRepository } from "./services/prisma/SubjectRepository";
+import { ThreadRepository } from "./services/prisma/ThreadRepository";
 import { PrismaClientProvider } from "./services/prisma/PrismaClientProvider";
 import { Reranker } from "./services/retrieval/Reranker";
 import { SubjectScopedRetriever } from "./services/retrieval/SubjectScopedRetriever";
@@ -38,6 +39,7 @@ export interface AppBootstrap {
     auth: BetterAuthInstance;
     cragPipeline: CragPipelineService;
     subjectRepository: SubjectRepository;
+    threadRepository: ThreadRepository;
   };
 }
 
@@ -47,6 +49,7 @@ export function createApp(envInput?: AppEnv): AppBootstrap {
 
   const prismaProvider = new PrismaClientProvider(env.databaseUrl);
   const subjectRepository = new SubjectRepository(prismaProvider.getClient());
+  const threadRepository = new ThreadRepository(prismaProvider.getClient());
   const auth = createBetterAuth(prismaProvider.getClient(), env);
   const requireAuth = createRequireAuth(auth);
 
@@ -92,7 +95,8 @@ export function createApp(envInput?: AppEnv): AppBootstrap {
 
   const askController = new AskController({
     cragPipeline,
-    subjectRepository
+    subjectRepository,
+    threadRepository
   });
   const meController = new MeController();
   const geminiLiveClient = new GeminiLiveClient({
@@ -104,6 +108,7 @@ export function createApp(envInput?: AppEnv): AppBootstrap {
   const voiceController = new VoiceController({
     cragPipeline,
     subjectRepository,
+    threadRepository,
     geminiLiveClient
   });
   const subjectController = new SubjectController({ subjectRepository });
@@ -203,7 +208,8 @@ export function createApp(envInput?: AppEnv): AppBootstrap {
     services: {
       auth,
       cragPipeline,
-      subjectRepository
+      subjectRepository,
+      threadRepository
     }
   };
 }

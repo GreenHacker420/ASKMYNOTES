@@ -5,6 +5,7 @@ import { fromNodeHeaders } from "better-auth/node";
 import type { BetterAuthInstance } from "../services/auth/auth";
 import type { CragPipelineService } from "../services/crag/CragPipelineService";
 import type { SubjectRepository } from "../services/prisma/SubjectRepository";
+import type { ThreadRepository } from "../services/prisma/ThreadRepository";
 import type { AskRequest } from "../types/crag";
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 
@@ -27,6 +28,7 @@ export interface SocketServerOptions {
   auth: BetterAuthInstance;
   cragPipeline: CragPipelineService;
   subjectRepository: SubjectRepository;
+  threadRepository: ThreadRepository;
 }
 
 export function createSocketServer(options: SocketServerOptions): Server {
@@ -105,6 +107,8 @@ export function createSocketServer(options: SocketServerOptions): Server {
           return;
         }
 
+        await options.threadRepository.ensureThread(parsed.data.threadId, parsed.data.subjectId);
+
         const askRequest: AskRequest = {
           question: parsed.data.question,
           subjectId: parsed.data.subjectId,
@@ -148,6 +152,7 @@ export function createSocketServer(options: SocketServerOptions): Server {
           socket.emit("voice:error", { error: "Subject not found" });
           return;
         }
+        await options.threadRepository.ensureThread(parsed.data.threadId, parsed.data.subjectId);
         liveSessionInfo = { subjectId: parsed.data.subjectId, threadId: parsed.data.threadId };
         const subjectName = parsed.data.subjectName ?? subject.name;
 
@@ -192,6 +197,7 @@ export function createSocketServer(options: SocketServerOptions): Server {
                     args: fc.args
                   }))
                 });
+                socket.emit("voice:status", { stage: "retrieving", detail: "Searching your notes" });
 
                 const functionResponses: Array<{
                   id: string;
@@ -211,6 +217,7 @@ export function createSocketServer(options: SocketServerOptions): Server {
                         threadId: liveSessionInfo.threadId,
                         subjectName
                       };
+                      socket.emit("voice:status", { stage: "generating", detail: "Generating answer" });
                       const response = await options.cragPipeline.ask(askRequest);
                       console.log("[voice] CRAG result length:", response.answer.length);
 
@@ -267,10 +274,12 @@ export function createSocketServer(options: SocketServerOptions): Server {
               }
 
               if (transcriptChunk) {
+                socket.emit("voice:status", { stage: "transcribing", detail: "Transcribing speech" });
                 socket.emit("voice:transcript", { text: transcriptChunk });
               }
 
               if (outputTranscriptChunk) {
+                socket.emit("voice:status", { stage: "speaking", detail: "Speaking answer" });
                 socket.emit("voice:output-transcript", { text: outputTranscriptChunk });
               }
 
@@ -306,6 +315,7 @@ export function createSocketServer(options: SocketServerOptions): Server {
         liveReady = true;
         console.log("[voice] session ready with search_notes tool");
         socket.emit("voice:ready");
+        socket.emit("voice:status", { stage: "listening", detail: "Listening" });
 
         // Greeting — model will speak naturally
         if (liveSession) {
@@ -332,6 +342,7 @@ export function createSocketServer(options: SocketServerOptions): Server {
       if (payload?.audioStreamEnd) {
         console.log("[voice] audioStreamEnd", socket.id);
         liveSession.sendRealtimeInput({ audioStreamEnd: true });
+        socket.emit("voice:status", { stage: "listening", detail: "Listening" });
         return;
       }
 
