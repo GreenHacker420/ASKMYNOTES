@@ -68,7 +68,7 @@ export interface AppEnv {
   googleOauthClientId?: string;
   googleOauthClientSecret?: string;
   frontendUrl: string;
-  disableRateLimits: boolean;
+
 }
 
 export function loadAppEnv(): AppEnv {
@@ -116,8 +116,6 @@ export function loadAppEnv(): AppEnv {
     googleOauthClientId: readOptionalEnv("GOOGLE_CLIENT_ID"),
     googleOauthClientSecret: readOptionalEnv("GOOGLE_CLIENT_SECRET"),
     frontendUrl: readEnv("FRONTEND_URL", "http://localhost:3000")
-    ,
-    disableRateLimits: readBooleanEnv("DISABLE_RATE_LIMITS", false)
   };
 }
 

@@ -1,7 +1,7 @@
 import cors from "cors";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+
 import { toNodeHandler } from "better-auth/node";
 import { buildCragConfig } from "./config/cragConfig";
 import type { AppEnv } from "./config/env";
@@ -134,39 +134,16 @@ export function createApp(envInput?: AppEnv): AppBootstrap {
   app.use(cors({
     origin: true,
     credentials: true,
-    exposedHeaders: ["X-Transcript"]
+    exposedHeaders: ["X-Transcript", "X-Answer"]
   }));
 
-  // ── Rate limiters ──
-  const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    limit: 30,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    message: { error: "Too many auth requests, please try again later." }
-  });
 
-  const askLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000, // 1 minute
-    limit: 20,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    message: { error: "Too many requests, please slow down." }
-  });
-  const uploadLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000, // 1 minute
-    limit: 60,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    message: { error: "Too many uploads, please slow down." }
-  });
 
   // ── Routes ──
-  app.all("/api/auth/{*any}", authLimiter, toNodeHandler(auth));
+  app.all("/api/auth/{*any}", toNodeHandler(auth));
   app.use(express.json({ limit: "25mb" }));
   app.use(
     "/api/voice",
-    askLimiter,
     createVoiceRouter(
       {
         voiceController
@@ -176,7 +153,6 @@ export function createApp(envInput?: AppEnv): AppBootstrap {
   );
   app.use(
     "/api",
-    askLimiter,
     createApiRoutes(
       {
         askController,
@@ -185,8 +161,7 @@ export function createApp(envInput?: AppEnv): AppBootstrap {
         quizController,
         meController
       },
-      requireAuth,
-      uploadLimiter
+      requireAuth
     )
   );
 

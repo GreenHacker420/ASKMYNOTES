@@ -10,6 +10,7 @@ export const BACKEND_ROUTES = {
   subjectFiles: (subjectId: string) => `/api/subjects/${subjectId}/files`,
   generateQuiz: (subjectId: string) => `/api/subjects/${subjectId}/quiz`,
   voiceQuery: "/api/voice/query",
+  voiceSpeak: "/api/voice/speak",
   authBase: "/api/auth"
 } as const;
 
@@ -345,6 +346,52 @@ export async function voiceQueryAction(
     const buffer = await response.arrayBuffer();
     const mimeType = response.headers.get("content-type") ?? "audio/pcm";
     const transcript = response.headers.get("x-transcript") ?? undefined;
+
+    return {
+      ok: true,
+      status: response.status,
+      data: {
+        audioBlob: new Blob([buffer], { type: mimeType }),
+        mimeType,
+        transcript
+      }
+    };
+  } catch {
+    return {
+      ok: false,
+      status: 500,
+      error: "Failed to reach backend."
+    };
+  }
+}
+
+export async function voiceSpeakAction(text: string): Promise<ActionResult<VoiceQueryResult>> {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return { ok: false, status: 400, error: "text is required" };
+  }
+
+  try {
+    const response = await callBackend(BACKEND_ROUTES.voiceSpeak, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ text: trimmed })
+    });
+
+    if (!response.ok) {
+      const payload = await response.text().catch(() => "");
+      return {
+        ok: false,
+        status: response.status,
+        error: payload || `Voice speak failed (${response.status})`
+      };
+    }
+
+    const buffer = await response.arrayBuffer();
+    const mimeType = response.headers.get("content-type") ?? "audio/pcm";
+    const transcript = response.headers.get("x-answer") ?? undefined;
 
     return {
       ok: true,
