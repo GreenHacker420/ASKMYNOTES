@@ -23,12 +23,20 @@ import { LangChainPineconeStoreFactory } from "./services/retrieval/LangChainPin
 import { Reranker } from "./services/retrieval/Reranker";
 import { SubjectScopedRetriever } from "./services/retrieval/SubjectScopedRetriever";
 import { createApiRoutes } from "./routes/apiRoutes";
-import { createBetterAuth } from "./services/auth/auth";
+import { createBetterAuth, type BetterAuthInstance } from "./services/auth/auth";
 import { createRequireAuth } from "./services/auth/requireAuth";
+import { GeminiLiveClient } from "./voice/geminiLiveClient";
+import { VoiceController } from "./voice/voiceController";
+import { createVoiceRouter } from "./voice/voiceRouter";
 
 export interface AppBootstrap {
   app: Express;
   stop: () => Promise<void>;
+  services: {
+    auth: BetterAuthInstance;
+    cragPipeline: CragPipelineService;
+    subjectRepository: SubjectRepository;
+  };
 }
 
 export function createApp(envInput?: AppEnv): AppBootstrap {
@@ -88,6 +96,17 @@ export function createApp(envInput?: AppEnv): AppBootstrap {
     cragPipeline,
     subjectRepository
   });
+  const geminiLiveClient = new GeminiLiveClient({
+    apiKey: env.googleApiKey,
+    transcriptionModel: process.env.GEMINI_LIVE_TRANSCRIBE_MODEL,
+    audioModel: process.env.GEMINI_LIVE_AUDIO_MODEL,
+    voiceName: process.env.GEMINI_LIVE_VOICE
+  });
+  const voiceController = new VoiceController({
+    cragPipeline,
+    subjectRepository,
+    geminiLiveClient
+  });
   const subjectController = new SubjectController({ subjectRepository });
   const ingestionController = new IngestionController({
     subjectRepository,
@@ -107,7 +126,8 @@ export function createApp(envInput?: AppEnv): AppBootstrap {
   app.use(helmet());
   app.use(cors({
     origin: true,
-    credentials: true
+    credentials: true,
+    exposedHeaders: ["X-Transcript"]
   }));
 
   // ── Rate limiters ──
@@ -130,6 +150,16 @@ export function createApp(envInput?: AppEnv): AppBootstrap {
   // ── Routes ──
   app.all("/api/auth/{*any}", authLimiter, toNodeHandler(auth));
   app.use(express.json({ limit: "25mb" }));
+  app.use(
+    "/api/voice",
+    askLimiter,
+    createVoiceRouter(
+      {
+        voiceController
+      },
+      requireAuth
+    )
+  );
   app.use(
     "/api",
     askLimiter,
@@ -176,6 +206,11 @@ export function createApp(envInput?: AppEnv): AppBootstrap {
     app,
     stop: async () => {
       await prismaProvider.disconnect();
+    },
+    services: {
+      auth,
+      cragPipeline,
+      subjectRepository
     }
   };
 }

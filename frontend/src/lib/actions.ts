@@ -1,39 +1,14 @@
-"use server";
-
-import { cookies } from "next/headers";
-
 const DEFAULT_BACKEND_BASE_URL = "http://localhost:3001";
 
 export const BACKEND_ROUTES = {
   health: "/health",
   ask: "/api/ask",
-  authBase: "/api/auth",
-  subjects: "/api/subjects"
+  askStream: "/api/ask/stream",
+  subjects: "/api/subjects",
+  subjectFiles: (subjectId: string) => `/api/subjects/${subjectId}/files`,
+  voiceQuery: "/api/voice/query",
+  authBase: "/api/auth"
 } as const;
-
-export interface BackendSubject {
-  id: string;
-  name: string;
-  userId: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface BackendFile {
-  id: string;
-  fileName: string;
-  mimeType: string | null;
-  subjectId: string;
-  createdAt: string;
-}
-
-export interface UploadFilePayload {
-  subjectId: string;
-  subjectName?: string;
-  fileName: string;
-  mimeType?: string;
-  contentBase64: string;
-}
 
 export interface AskRequestPayload {
   question: string;
@@ -74,34 +49,19 @@ export interface ActionResult<T> {
 }
 
 function normalizeBackendBaseUrl(): string {
-  const raw = process.env.BACKEND_URL ?? process.env.NEXT_PUBLIC_BACKEND_URL ?? DEFAULT_BACKEND_BASE_URL;
+  const raw = process.env.NEXT_PUBLIC_BACKEND_URL ?? DEFAULT_BACKEND_BASE_URL;
   return raw.endsWith("/") ? raw.slice(0, -1) : raw;
-}
-
-async function getCookieHeader(): Promise<string | undefined> {
-  const cookieStore = await cookies();
-  const allCookies = cookieStore.getAll();
-
-  if (allCookies.length === 0) {
-    return undefined;
-  }
-
-  return allCookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
 }
 
 async function callBackend(path: string, init: RequestInit): Promise<Response> {
   const backendUrl = `${normalizeBackendBaseUrl()}${path}`;
   const headers = new Headers(init.headers);
-  const cookieHeader = await getCookieHeader();
-
-  if (cookieHeader) {
-    headers.set("cookie", cookieHeader);
-  }
 
   return fetch(backendUrl, {
     ...init,
     headers,
-    cache: "no-store"
+    cache: "no-store",
+    credentials: "include"
   });
 }
 
@@ -194,7 +154,21 @@ export async function checkBackendHealthAction(): Promise<ActionResult<{ ok: boo
   }
 }
 
-export async function getSubjectsAction(): Promise<ActionResult<{ subjects: BackendSubject[] }>> {
+export interface SubjectRecord {
+  id: string;
+  name: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SubjectFileRecord {
+  fileName: string;
+  chunkCount: number;
+  maxPage: number | null;
+  lastIngestedAt: string | null;
+}
+
+export async function getSubjectsAction(): Promise<ActionResult<{ subjects: SubjectRecord[] }>> {
   try {
     const response = await callBackend(BACKEND_ROUTES.subjects, {
       method: "GET"
@@ -205,14 +179,14 @@ export async function getSubjectsAction(): Promise<ActionResult<{ subjects: Back
       return { ok: false, status: response.status, error: errorMsg };
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as { subjects: SubjectRecord[] };
     return { ok: true, status: response.status, data };
-  } catch (error) {
+  } catch {
     return { ok: false, status: 500, error: "Network error" };
   }
 }
 
-export async function createSubjectAction({ name }: { name: string }): Promise<ActionResult<{ subject: BackendSubject }>> {
+export async function createSubjectAction({ name }: { name: string }): Promise<ActionResult<{ subject: SubjectRecord }>> {
   try {
     const response = await callBackend(BACKEND_ROUTES.subjects, {
       method: "POST",
@@ -225,19 +199,41 @@ export async function createSubjectAction({ name }: { name: string }): Promise<A
       return { ok: false, status: response.status, error: errorMsg };
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as { subject: SubjectRecord };
     return { ok: true, status: response.status, data };
-  } catch (error) {
+  } catch {
     return { ok: false, status: 500, error: "Network error" };
   }
 }
 
-export async function uploadFileAction(payload: UploadFilePayload): Promise<ActionResult<any>> {
+export interface UploadFilePayload {
+  subjectId: string;
+  subjectName?: string;
+  file: File;
+}
+
+export interface IngestionResult {
+  subjectId: string;
+  subjectName: string;
+  fileName: string;
+  totalPages: number;
+  chunkCount: number;
+}
+
+export async function uploadFileAction(payload: UploadFilePayload): Promise<ActionResult<{ ingestion: IngestionResult }>> {
   try {
-    const response = await callBackend(`${BACKEND_ROUTES.subjects}/${payload.subjectId}/files`, {
+    const contentBase64 = await fileToBase64(payload.file);
+
+    const response = await callBackend(BACKEND_ROUTES.subjectFiles(payload.subjectId), {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        subjectId: payload.subjectId,
+        subjectName: payload.subjectName,
+        fileName: payload.file.name,
+        mimeType: payload.file.type,
+        contentBase64
+      })
     });
 
     if (!response.ok) {
@@ -245,16 +241,18 @@ export async function uploadFileAction(payload: UploadFilePayload): Promise<Acti
       return { ok: false, status: response.status, error: errorMsg };
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as { ingestion: IngestionResult };
     return { ok: true, status: response.status, data };
-  } catch (error) {
+  } catch {
     return { ok: false, status: 500, error: "Network error" };
   }
 }
 
-export async function getSubjectFilesAction(subjectId: string): Promise<ActionResult<{ files: BackendFile[] }>> {
+export async function getSubjectFilesAction(
+  subjectId: string
+): Promise<ActionResult<{ subject: SubjectRecord; files: SubjectFileRecord[] }>> {
   try {
-    const response = await callBackend(`${BACKEND_ROUTES.subjects}/${subjectId}/files`, {
+    const response = await callBackend(BACKEND_ROUTES.subjectFiles(subjectId), {
       method: "GET"
     });
 
@@ -263,9 +261,92 @@ export async function getSubjectFilesAction(subjectId: string): Promise<ActionRe
       return { ok: false, status: response.status, error: errorMsg };
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as { subject: SubjectRecord; files: SubjectFileRecord[] };
     return { ok: true, status: response.status, data };
-  } catch (error) {
+  } catch {
     return { ok: false, status: 500, error: "Network error" };
   }
+}
+
+export interface VoiceQueryInput {
+  audio: Blob;
+  mimeType: string;
+  subjectId: string;
+  threadId: string;
+  subjectName?: string;
+}
+
+export interface VoiceQueryResult {
+  audioBlob: Blob;
+  mimeType: string;
+  transcript?: string;
+}
+
+export async function voiceQueryAction(
+  input: VoiceQueryInput
+): Promise<ActionResult<VoiceQueryResult>> {
+  try {
+    const response = await callBackend(BACKEND_ROUTES.voiceQuery, {
+      method: "POST",
+      headers: {
+        "content-type": input.mimeType,
+        "x-subject-id": input.subjectId,
+        "x-thread-id": input.threadId,
+        ...(input.subjectName ? { "x-subject-name": input.subjectName } : {})
+      },
+      body: input.audio
+    });
+
+    if (!response.ok) {
+      const payload = await response.text().catch(() => "");
+      return {
+        ok: false,
+        status: response.status,
+        error: payload || `Voice query failed (${response.status})`
+      };
+    }
+
+    const buffer = await response.arrayBuffer();
+    const mimeType = response.headers.get("content-type") ?? "audio/pcm";
+    const transcript = response.headers.get("x-transcript") ?? undefined;
+
+    return {
+      ok: true,
+      status: response.status,
+      data: {
+        audioBlob: new Blob([buffer], { type: mimeType }),
+        mimeType,
+        transcript
+      }
+    };
+  } catch {
+    return {
+      ok: false,
+      status: 500,
+      error: "Failed to reach backend."
+    };
+  }
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read file."));
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string") {
+        resolve(result);
+      } else if (result instanceof ArrayBuffer) {
+        const bytes = new Uint8Array(result);
+        let binary = "";
+        for (const byte of bytes) {
+          binary += String.fromCharCode(byte);
+        }
+        resolve(`data:${file.type};base64,${btoa(binary)}`);
+      } else {
+        reject(new Error("Failed to read file."));
+      }
+    };
+    reader.readAsDataURL(file);
+  });
 }

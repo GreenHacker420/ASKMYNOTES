@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useCallback } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { LogOut, FileText, MessageSquare, Brain, BookOpen, Mic } from "lucide-react";
@@ -32,19 +32,11 @@ import {
   getSubjectFilesAction,
   type AskResponsePayload
 } from "@/src/lib/actions";
+import { getSocket } from "@/src/lib/socket";
 import { authClient } from "@/src/lib/auth-client";
 import { AskMyNotesLogo } from "@/src/components/AskMyNotesLogo";
 
 // ── Helpers ──
-const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = (error) => reject(error);
-  });
-};
-
 function createId(): string {
   return `id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -193,10 +185,11 @@ export default function DashboardPage() {
     uploadFiles,
     deleteFile,
     addChatMessage,
+    updateChatMessage,
     setStudyQuiz
   } = useStudyStore();
 
-  const selectedSubject = subjects.find((s) => s.id === selectedId) ?? null;
+  const selectedSubject = subjects.find((s: Subject) => s.id === selectedId) ?? null;
 
   // ── Initialization ──
   React.useEffect(() => {
@@ -225,33 +218,90 @@ export default function DashboardPage() {
     if (!selectedId) return;
 
     // Check if we've already loaded files (simple optimization)
-    const currentSubject = subjects.find(s => s.id === selectedId);
+    const currentSubject = subjects.find((s: Subject) => s.id === selectedId);
     if (currentSubject && currentSubject.files.length > 0) return;
 
     async function fetchFiles() {
       const res = await getSubjectFilesAction(selectedId as string);
       if (res.ok && res.data) {
         const backendFiles = res.data.files;
-        const mappedFiles: UploadedFile[] = backendFiles.map((f: any) => {
-          const isPdf = f.mimeType === "application/pdf" || f.fileName.toLowerCase().endsWith(".pdf");
+        const mappedFiles: UploadedFile[] = backendFiles.map((f) => {
+          const isPdf = f.fileName.toLowerCase().endsWith(".pdf");
           return {
-            id: f.id,
+            id: `${selectedId}-${f.fileName}`,
             name: f.fileName,
             size: 0,
             type: (isPdf ? "pdf" : "txt") as "pdf" | "txt",
-            file: new File([], f.fileName), // Placeholder file
-            uploadedAt: new Date(f.createdAt)
+            uploadedAt: f.lastIngestedAt ? new Date(f.lastIngestedAt) : new Date()
           };
         });
-        // Avoid overwriting if they already exist, but for now just replace
-        if (mappedFiles.length > 0) {
-          uploadFiles(selectedId as string, mappedFiles);
-        }
+        setSubjects((prev: Subject[]) =>
+          prev.map((s: Subject) => (s.id === selectedId ? { ...s, files: mappedFiles } : s))
+        );
       }
     }
     fetchFiles();
-  }, [selectedId, subjects, uploadFiles]);
+  }, [selectedId, subjects, setSubjects]);
 
+  // Socket.io streaming for chat
+  React.useEffect(() => {
+    const socket = getSocket();
+
+    const handleChunk = (payload: { requestId?: string; delta: string }) => {
+      if (!payload.requestId) return;
+      const state = useStudyStore.getState();
+      const pending = state.subjects
+        .flatMap((s: Subject) => s.chatMessages.map((m: ChatMessage) => ({ subjectId: s.id, message: m })))
+        .find((entry: { subjectId: string; message: ChatMessage }) => entry.message.id === payload.requestId);
+      if (!pending) return;
+
+      const nextContent = `${pending.message.content ?? ""}${payload.delta}`;
+      updateChatMessage(pending.subjectId, pending.message.id, { content: nextContent });
+    };
+
+    const handleFinal = (payload: { requestId?: string; response: AskResponsePayload }) => {
+      if (!payload.requestId) return;
+      const state = useStudyStore.getState();
+      const pending = state.subjects
+        .flatMap((s: Subject) => s.chatMessages.map((m: ChatMessage) => ({ subjectId: s.id, message: m })))
+        .find((entry: { subjectId: string; message: ChatMessage }) => entry.message.id === payload.requestId);
+      if (!pending) return;
+
+      updateChatMessage(pending.subjectId, pending.message.id, {
+        content: payload.response.answer,
+        confidence: payload.response.confidence,
+        citations: payload.response.citations,
+        evidence: payload.response.evidence,
+        notFound: !payload.response.found
+      });
+      setIsChatLoading(false);
+    };
+
+    const handleError = (payload: { requestId?: string; error: string }) => {
+      if (!payload.requestId) return;
+      const state = useStudyStore.getState();
+      const pending = state.subjects
+        .flatMap((s: Subject) => s.chatMessages.map((m: ChatMessage) => ({ subjectId: s.id, message: m })))
+        .find((entry: { subjectId: string; message: ChatMessage }) => entry.message.id === payload.requestId);
+      if (!pending) return;
+
+      updateChatMessage(pending.subjectId, pending.message.id, {
+        content: `I'm sorry, I encountered an error: ${payload.error}`,
+        notFound: true
+      });
+      setIsChatLoading(false);
+    };
+
+    socket.on("ask:chunk", handleChunk);
+    socket.on("ask:final", handleFinal);
+    socket.on("ask:error", handleError);
+
+    return () => {
+      socket.off("ask:chunk", handleChunk);
+      socket.off("ask:final", handleFinal);
+      socket.off("ask:error", handleError);
+    };
+  }, [updateChatMessage, setIsChatLoading]);
 
   // ── Actions ──
 
@@ -277,21 +327,18 @@ export default function DashboardPage() {
   }, [subjects.length, addSubject]);
 
   const handleUploadFiles = useCallback(async (subjectId: string, droppingFiles: UploadedFile[]) => {
-    // Optimistic UI could be added here, but for simplicity we'll just wait for upload
-    const currentSubject = subjects.find(s => s.id === subjectId);
+    const currentSubject = subjects.find((s: Subject) => s.id === subjectId);
+    const uploaded: UploadedFile[] = [];
 
     for (const dropFile of droppingFiles) {
       if (!dropFile.file) continue;
       try {
-        const base64Content = await fileToBase64(dropFile.file);
-
         await uploadFileAction({
           subjectId,
           subjectName: currentSubject?.name,
-          fileName: dropFile.name,
-          mimeType: dropFile.file.type,
-          contentBase64: base64Content
+          file: dropFile.file
         });
+        uploaded.push(dropFile);
 
       } catch (err) {
         console.error("Failed to upload file:", dropFile.name, err);
@@ -299,8 +346,9 @@ export default function DashboardPage() {
       }
     }
 
-    // We update UI directly with the dropped files since we processed them
-    uploadFiles(subjectId, droppingFiles);
+    if (uploaded.length > 0) {
+      uploadFiles(subjectId, uploaded);
+    }
   }, [subjects, uploadFiles]);
 
   const handleDeleteFile = useCallback((subjectId: string, fileId: string) => {
@@ -320,38 +368,58 @@ export default function DashboardPage() {
 
     // Call real API
     setIsChatLoading(true);
-    const currentSubject = subjects.find(s => s.id === subjectId);
+    const currentSubject = subjects.find((s: Subject) => s.id === subjectId);
+    const requestId = createId();
 
     try {
-      const res = await askNotesAction({
-        question: message,
-        subjectId,
-        subjectName: currentSubject?.name,
-        threadId: currentSubject?.threadId || createThreadId(),
-      });
-
-      if (res.ok && res.data) {
-        const payload = res.data;
+      const socket = getSocket();
+      if (socket.connected) {
         const aiMsg: ChatMessage = {
-          id: createId(),
+          id: requestId,
           role: "assistant",
-          content: payload.answer,
-          timestamp: new Date(),
-          confidence: payload.confidence,
-          citations: payload.citations,
-          evidence: payload.evidence,
-          notFound: !payload.found,
+          content: "",
+          timestamp: new Date()
         };
         addChatMessage(subjectId, aiMsg);
+        socket.emit("ask", {
+          requestId,
+          question: message,
+          subjectId,
+          subjectName: currentSubject?.name,
+          threadId: currentSubject?.threadId || createThreadId(),
+        });
       } else {
-        const errorMsg: ChatMessage = {
-          id: createId(),
-          role: "assistant",
-          content: `I'm sorry, I encountered an error: ${res.error}`,
-          timestamp: new Date(),
-          notFound: true,
-        };
-        addChatMessage(subjectId, errorMsg);
+        const res = await askNotesAction({
+          question: message,
+          subjectId,
+          subjectName: currentSubject?.name,
+          threadId: currentSubject?.threadId || createThreadId(),
+        });
+
+        if (res.ok && res.data) {
+          const payload = res.data;
+          const aiMsg: ChatMessage = {
+            id: createId(),
+            role: "assistant",
+            content: payload.answer,
+            timestamp: new Date(),
+            confidence: payload.confidence,
+            citations: payload.citations,
+            evidence: payload.evidence,
+            notFound: !payload.found,
+          };
+          addChatMessage(subjectId, aiMsg);
+        } else {
+          const errorMsg: ChatMessage = {
+            id: createId(),
+            role: "assistant",
+            content: `I'm sorry, I encountered an error: ${res.error}`,
+            timestamp: new Date(),
+            notFound: true,
+          };
+          addChatMessage(subjectId, errorMsg);
+        }
+        setIsChatLoading(false);
       }
     } catch (err) {
       console.error("Chat error:", err);
@@ -362,14 +430,13 @@ export default function DashboardPage() {
         timestamp: new Date(),
         notFound: true,
       });
-    } finally {
       setIsChatLoading(false);
     }
   }, [subjects, addChatMessage, setIsChatLoading]);
 
   const handleGenerateQuiz = useCallback((subjectId: string) => {
     setIsQuizGenerating(true);
-    const subjectName = subjects.find((s) => s.id === subjectId)?.name ?? "this subject";
+    const subjectName = subjects.find((s: Subject) => s.id === subjectId)?.name ?? "this subject";
 
     setTimeout(() => {
       const quiz = generateMockQuiz(subjectName);
@@ -404,7 +471,7 @@ export default function DashboardPage() {
           <span className="hidden md:flex items-center gap-2 px-3 py-1 rounded border-2 border-slate-900 bg-yellow-50 text-xs font-bold text-slate-800 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]" style={{ filter: "url(#squiggle)" }}>
             <span>{subjects.length} subject{subjects.length !== 1 ? "s" : ""}</span>
             <span className="w-1 h-1 rounded-full bg-slate-400" />
-            <span>{subjects.reduce((sum, s) => sum + s.files.length, 0)} files</span>
+            <span>{subjects.reduce((sum: number, s: Subject) => sum + s.files.length, 0)} files</span>
           </span>
           <div onClick={async () => {
             try {

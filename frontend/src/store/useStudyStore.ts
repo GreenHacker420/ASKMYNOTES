@@ -23,6 +23,7 @@ interface StudyState {
     uploadFiles: (subjectId: string, files: UploadedFile[]) => void;
     deleteFile: (subjectId: string, fileId: string) => void;
     addChatMessage: (subjectId: string, message: ChatMessage) => void;
+    updateChatMessage: (subjectId: string, messageId: string, patch: Partial<ChatMessage>) => void;
     setStudyQuiz: (subjectId: string, quiz: StudyQuiz) => void;
 
     // Voice Actions
@@ -79,6 +80,18 @@ export const useStudyStore = create<StudyState>((set) => ({
             subjects: state.subjects.map((s) =>
                 s.id === subjectId ? { ...s, chatMessages: [...s.chatMessages, message] } : s
             ),
+        })),
+    updateChatMessage: (subjectId, messageId, patch) =>
+        set((state) => ({
+            subjects: state.subjects.map((s) => {
+                if (s.id !== subjectId) return s;
+                return {
+                    ...s,
+                    chatMessages: s.chatMessages.map((msg) =>
+                        msg.id === messageId ? { ...msg, ...patch } : msg
+                    )
+                };
+            })
         })),
 
     setStudyQuiz: (subjectId: string, quiz: StudyQuiz) =>

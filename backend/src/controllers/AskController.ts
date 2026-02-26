@@ -17,6 +17,9 @@ export interface AskControllerOptions {
   subjectRepository: SubjectRepository;
 }
 
+// Text enters: /api/ask and /api/ask/stream -> AskController -> CragPipelineService.ask
+// Text leaves: JSON response (ask) or SSE chunks + final event (askStream) -> HTTP response
+// Best voice injection point: call CragPipelineService.ask with AskRequest (after auth + subject validation)
 export class AskController {
   private readonly options: AskControllerOptions;
 

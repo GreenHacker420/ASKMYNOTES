@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, Volume2, Search, AlertCircle, Quote, Sparkles, User, GraduationCap } from "lucide-react";
+import { Mic, MicOff, Volume2, Sparkles, User, GraduationCap } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import { useStudyStore } from "@/src/store/useStudyStore";
-import { SketchButton } from "../CoreLandingPages/CompleteLandingPages/tsx/SketchButton";
+import type { Subject } from "@/src/components/dashboard/types";
+import { voiceQueryAction } from "@/src/lib/actions";
 
 export function VoicePanel() {
     const {
@@ -18,46 +19,109 @@ export function VoicePanel() {
         addChatMessage
     } = useStudyStore();
 
-    const selectedSubject = subjects.find(s => s.id === selectedId);
+    const selectedSubject = subjects.find((s: Subject) => s.id === selectedId);
     const [transcript, setTranscript] = useState("");
     const [lastAiResponse, setLastAiResponse] = useState<string | null>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
 
-    // Simulation: Toggle listening state
-    const toggleVoice = () => {
+    const getSupportedMimeType = (): string => {
+        const candidates = [
+            "audio/webm;codecs=opus",
+            "audio/webm",
+            "audio/ogg;codecs=opus"
+        ];
+        for (const candidate of candidates) {
+            if (MediaRecorder.isTypeSupported(candidate)) {
+                return candidate;
+            }
+        }
+        return "";
+    };
+
+    const stopRecording = () => {
+        const recorder = mediaRecorderRef.current;
+        if (recorder && recorder.state !== "inactive") {
+            recorder.stop();
+        }
+        setVoiceActive(false);
+    };
+
+    const toggleVoice = async () => {
+        if (!selectedId) return;
         if (isVoiceActive) {
-            setVoiceActive(false);
-            setVoiceStatus("idle");
-        } else {
+            stopRecording();
+            setVoiceStatus("processing");
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mimeType = getSupportedMimeType();
+            const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+            mediaRecorderRef.current = recorder;
+            audioChunksRef.current = [];
+            setTranscript("");
+            setLastAiResponse(null);
+
+            recorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
+            };
+
+            recorder.onstop = async () => {
+                stream.getTracks().forEach((track) => track.stop());
+                const audioBlob = new Blob(audioChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+                audioChunksRef.current = [];
+                setVoiceStatus("processing");
+
+                const subjectName = selectedSubject?.name;
+                const threadId = selectedSubject?.threadId ?? `thread-${Date.now()}`;
+                const response = await voiceQueryAction({
+                    audio: audioBlob,
+                    mimeType: audioBlob.type || "audio/webm",
+                    subjectId: selectedId,
+                    threadId,
+                    subjectName
+                });
+
+                if (!response.ok || !response.data) {
+                    setVoiceStatus("idle");
+                    setLastAiResponse("Voice request failed.");
+                    return;
+                }
+
+                if (response.data.transcript) {
+                    setTranscript(response.data.transcript);
+                    addChatMessage(selectedId, {
+                        id: Math.random().toString(),
+                        role: "user",
+                        content: response.data.transcript,
+                        timestamp: new Date()
+                    });
+                }
+
+                const audioUrl = URL.createObjectURL(response.data.audioBlob);
+                const audio = new Audio(audioUrl);
+                setVoiceStatus("speaking");
+                setLastAiResponse("Playing voice response...");
+                audio.onended = () => {
+                    URL.revokeObjectURL(audioUrl);
+                    setVoiceStatus("idle");
+                    setLastAiResponse(null);
+                };
+                audio.play().catch(() => {
+                    setVoiceStatus("idle");
+                });
+            };
+
+            recorder.start();
             setVoiceActive(true);
             setVoiceStatus("listening");
-
-            // Simulate hearing a question after 2 seconds
-            setTimeout(() => {
-                setVoiceStatus("processing");
-                setTranscript("Can you explain the main concept of this subject?");
-
-                // Simulate AI thinking and then speaking
-                setTimeout(() => {
-                    setVoiceStatus("speaking");
-                    setLastAiResponse("Based on your notes, the main concept involves the fundamental relationship between force and acceleration...");
-
-                    // Add to chat history too for multi-turn context
-                    if (selectedId) {
-                        addChatMessage(selectedId, {
-                            id: Math.random().toString(),
-                            role: "assistant",
-                            content: "I've explained this in our voice session: The main concept involves the fundamental relationship between force and acceleration.",
-                            timestamp: new Date()
-                        });
-                    }
-
-                    // Return to idle/listening after speaking
-                    setTimeout(() => {
-                        setVoiceStatus("listening");
-                        setTranscript("");
-                    }, 4000);
-                }, 1500);
-            }, 2000);
+        } catch (error) {
+            console.error("Voice capture failed:", error);
+            setVoiceStatus("idle");
         }
     };
 
