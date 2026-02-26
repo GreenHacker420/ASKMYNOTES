@@ -1,36 +1,27 @@
-import type { Pinecone } from "@pinecone-database/pinecone"; 
-import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai"; 
+import type { Pinecone } from "@pinecone-database/pinecone";
 import type { IRetriever } from "../../interfaces/retriever";
 import type { RetrievedChunk } from "../../types/crag";
-import type { LangChainPineconeStoreFactory } from "./LangChainPineconeStoreFactory";
+import type { EmbeddingClient } from "../embeddings/GeminiEmbeddingClient";
 
 export interface SubjectScopedRetrieverOptions {
   pinecone: Pinecone;
   pineconeIndexName: string;
-  googleApiKey: string;
-  embeddingModel?: string;
-  langChainStoreFactory?: LangChainPineconeStoreFactory;
+  embeddingClient: EmbeddingClient;
 }
 
 export class SubjectScopedRetriever implements IRetriever {
   private readonly pinecone: Pinecone;
   private readonly pineconeIndexName: string;
-  private readonly embeddings: GoogleGenerativeAIEmbeddings;
-  private readonly langChainStoreFactory?: LangChainPineconeStoreFactory;
+  private readonly embeddingClient: EmbeddingClient;
 
   constructor(options: SubjectScopedRetrieverOptions) {
     this.pinecone = options.pinecone;
     this.pineconeIndexName = options.pineconeIndexName;
-    this.langChainStoreFactory = options.langChainStoreFactory;
-
-    this.embeddings = new GoogleGenerativeAIEmbeddings({
-      apiKey: options.googleApiKey,
-      model: options.embeddingModel ?? "text-embedding-004"
-    });
+    this.embeddingClient = options.embeddingClient;
   }
 
   async retrieve(question: string, subjectId: string, topK: number): Promise<RetrievedChunk[]> {
-    const queryVector = await this.embeddings.embedQuery(question);
+    const queryVector = await this.embeddingClient.embedQuery(question, "RETRIEVAL_QUERY");
     
     const namespaceIndex = this.pinecone
       .index(this.pineconeIndexName)
@@ -59,8 +50,6 @@ export class SubjectScopedRetriever implements IRetriever {
         }
       } satisfies RetrievedChunk;
     });
-
-    void this.langChainStoreFactory;
 
     return mapped;
   }

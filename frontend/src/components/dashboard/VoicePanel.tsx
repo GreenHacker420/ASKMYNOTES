@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, MicOff, Volume2, Sparkles, User, GraduationCap } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import { useStudyStore } from "@/src/store/useStudyStore";
 import type { Subject } from "@/src/components/dashboard/types";
-import { voiceQueryAction } from "@/src/lib/actions";
+import { getSocket } from "@/src/lib/socket";
 
 export function VoicePanel() {
     const {
@@ -24,6 +24,10 @@ export function VoicePanel() {
     const [lastAiResponse, setLastAiResponse] = useState<string | null>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
+    const greetedRef = useRef(false);
+    const playbackQueueRef = useRef<Int16Array[]>([]);
+    const isPlayingRef = useRef(false);
+    const audioContextRef = useRef<AudioContext | null>(null);
 
     const getSupportedMimeType = (): string => {
         const candidates = [
@@ -64,65 +68,143 @@ export function VoicePanel() {
             setTranscript("");
             setLastAiResponse(null);
 
-            recorder.ondataavailable = (event) => {
+            recorder.ondataavailable = async (event) => {
                 if (event.data.size > 0) {
                     audioChunksRef.current.push(event.data);
+                    try {
+                        const base64Pcm = await convertToPcm16(event.data, 16000);
+                        getSocket().emit("voice:audio", {
+                            data: base64Pcm,
+                            mimeType: "audio/pcm;rate=16000"
+                        });
+                    } catch (err) {
+                        console.warn("PCM chunk conversion failed", err);
+                    }
                 }
             };
 
             recorder.onstop = async () => {
                 stream.getTracks().forEach((track) => track.stop());
-                const audioBlob = new Blob(audioChunksRef.current, { type: recorder.mimeType || "audio/webm" });
                 audioChunksRef.current = [];
                 setVoiceStatus("processing");
-
-                const subjectName = selectedSubject?.name;
-                const threadId = selectedSubject?.threadId ?? `thread-${Date.now()}`;
-                const response = await voiceQueryAction({
-                    audio: audioBlob,
-                    mimeType: audioBlob.type || "audio/webm",
-                    subjectId: selectedId,
-                    threadId,
-                    subjectName
-                });
-
-                if (!response.ok || !response.data) {
-                    setVoiceStatus("idle");
-                    setLastAiResponse("Voice request failed.");
-                    return;
-                }
-
-                if (response.data.transcript) {
-                    setTranscript(response.data.transcript);
-                    addChatMessage(selectedId, {
-                        id: Math.random().toString(),
-                        role: "user",
-                        content: response.data.transcript,
-                        timestamp: new Date()
-                    });
-                }
-
-                const audioUrl = URL.createObjectURL(response.data.audioBlob);
-                const audio = new Audio(audioUrl);
-                setVoiceStatus("speaking");
-                setLastAiResponse("Playing voice response...");
-                audio.onended = () => {
-                    URL.revokeObjectURL(audioUrl);
-                    setVoiceStatus("idle");
-                    setLastAiResponse(null);
-                };
-                audio.play().catch(() => {
-                    setVoiceStatus("idle");
-                });
+                getSocket().emit("voice:stop");
             };
 
-            recorder.start();
+            recorder.start(250);
             setVoiceActive(true);
             setVoiceStatus("listening");
         } catch (error) {
             console.error("Voice capture failed:", error);
             setVoiceStatus("idle");
         }
+    };
+
+    useEffect(() => {
+        if (!selectedId || greetedRef.current) return;
+        greetedRef.current = true;
+        const socket = getSocket();
+        const threadId = selectedSubject?.threadId ?? `thread-${Date.now()}`;
+        socket.emit("voice:start", {
+            subjectId: selectedId,
+            threadId,
+            subjectName: selectedSubject?.name
+        });
+    }, [selectedId, selectedSubject]);
+
+    useEffect(() => {
+        const socket = getSocket();
+
+        const handleReady = () => {
+            setVoiceStatus("idle");
+            setLastAiResponse("Session ready. Ask your question.");
+        };
+
+        const handleTranscript = (payload: { text: string }) => {
+            setTranscript(payload.text);
+        };
+
+        const handleAudio = (payload: { data: string; mimeType: string }) => {
+            const bytes = Uint8Array.from(atob(payload.data), (c) => c.charCodeAt(0));
+            const pcm = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2);
+            playbackQueueRef.current.push(pcm);
+            if (!isPlayingRef.current) {
+                void playQueue();
+            }
+        };
+
+        const handleFinal = () => {
+            setVoiceStatus("idle");
+        };
+
+        socket.on("voice:ready", handleReady);
+        socket.on("voice:transcript", handleTranscript);
+        socket.on("voice:audio", handleAudio);
+        socket.on("voice:final", handleFinal);
+
+        return () => {
+            socket.off("voice:ready", handleReady);
+            socket.off("voice:transcript", handleTranscript);
+            socket.off("voice:audio", handleAudio);
+            socket.off("voice:final", handleFinal);
+        };
+    }, []);
+
+    const playQueue = async () => {
+        if (!audioContextRef.current) {
+            audioContextRef.current = new AudioContext({ sampleRate: 24000 });
+        }
+        const context = audioContextRef.current;
+        isPlayingRef.current = true;
+        while (playbackQueueRef.current.length > 0) {
+            const chunk = playbackQueueRef.current.shift();
+            if (!chunk) continue;
+            const buffer = context.createBuffer(1, chunk.length, 24000);
+            const channel = buffer.getChannelData(0);
+            for (let i = 0; i < chunk.length; i++) {
+                channel[i] = chunk[i] / 32768;
+            }
+            const source = context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(context.destination);
+            source.start();
+            await new Promise((resolve) => {
+                source.onended = resolve;
+            });
+        }
+        isPlayingRef.current = false;
+    };
+
+    const convertToPcm16 = async (blob: Blob, targetSampleRate: number): Promise<string> => {
+        const arrayBuffer = await blob.arrayBuffer();
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+
+        const numChannels = 1;
+        const offlineContext = new OfflineAudioContext(numChannels, Math.ceil(audioBuffer.duration * targetSampleRate), targetSampleRate);
+        const source = offlineContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(offlineContext.destination);
+        source.start(0);
+
+        const rendered = await offlineContext.startRendering();
+        const channelData = rendered.getChannelData(0);
+        const pcmBuffer = new ArrayBuffer(channelData.length * 2);
+        const view = new DataView(pcmBuffer);
+        let offset = 0;
+        for (let i = 0; i < channelData.length; i++) {
+            let sample = Math.max(-1, Math.min(1, channelData[i]));
+            sample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+            view.setInt16(offset, sample, true);
+            offset += 2;
+        }
+
+        await audioContext.close();
+        const bytes = new Uint8Array(pcmBuffer);
+        let binary = "";
+        for (const byte of bytes) {
+            binary += String.fromCharCode(byte);
+        }
+        return btoa(binary);
     };
 
     if (!selectedId) return null;

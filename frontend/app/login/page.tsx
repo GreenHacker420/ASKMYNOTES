@@ -109,9 +109,12 @@ function SketchyInput({
 }
 
 import { useLoginStore } from "@/src/store/useLoginStore";
+import { useAuth } from "@/src/contexts/AuthContext";
 
-export default function LoginPage(): React.ReactElement {
+export default function LoginPage(): React.ReactElement | null {
   const router = useRouter();
+  const { user, isLoading } = useAuth();
+
   const {
     formData,
     setFormData,
@@ -124,6 +127,16 @@ export default function LoginPage(): React.ReactElement {
     serverError,
     setServerError
   } = useLoginStore();
+
+  React.useEffect(() => {
+    if (!isLoading && user) {
+      router.push("/study");
+    }
+  }, [user, isLoading, router]);
+
+  if (isLoading || user) {
+    return null; // or a custom loader
+  }
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
     const { name, value } = event.target;

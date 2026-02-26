@@ -1,4 +1,4 @@
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai"; 
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import type { ILLMClient } from "../../interfaces/llmClient";
 import { GeminiNativeSdkClient } from "./GeminiNativeSdkClient";
 
@@ -12,6 +12,8 @@ export interface GeminiLangChainClientOptions {
 export class GeminiLangChainClient implements ILLMClient {
   private readonly model: ChatGoogleGenerativeAI;
   private readonly nativeClient: GeminiNativeSdkClient;
+  private readonly teacherSuffix =
+    "\n\nAs a teacher, end with a short check-in question like: \"Did that make sense?\"";
 
   constructor(options: GeminiLangChainClientOptions) {
     this.model = new ChatGoogleGenerativeAI({
@@ -32,7 +34,7 @@ export class GeminiLangChainClient implements ILLMClient {
       .map(([role, content]) => `${role.toUpperCase()}:\n${content}`)
       .join("\n\n");
 
-    const response = await this.model.invoke(prompt);
+    const response = await this.model.invoke(`${prompt}${this.teacherSuffix}`);
 
     if (typeof response.content === "string") {
       return response.content;
@@ -55,6 +57,26 @@ export class GeminiLangChainClient implements ILLMClient {
       return normalized;
     }
 
-    return this.nativeClient.generateContent(prompt);
+    return this.nativeClient.generateContent(`${prompt}${this.teacherSuffix}`);
+  }
+
+  async *invokeStream(messages: Array<["system" | "human", string]>): AsyncGenerator<string, void, unknown> {
+    const prompt = messages
+      .map(([role, content]) => `${role.toUpperCase()}:\n${content}`)
+      .join("\n\n");
+
+    const stream = await this.model.stream(`${prompt}${this.teacherSuffix}`);
+
+    for await (const chunk of stream) {
+      if (typeof chunk.content === "string") {
+        if (chunk.content.length > 0) yield chunk.content;
+      } else if (Array.isArray(chunk.content)) {
+        for (const part of chunk.content) {
+          if ("text" in part && typeof part.text === "string" && part.text.length > 0) {
+            yield part.text;
+          }
+        }
+      }
+    }
   }
 }

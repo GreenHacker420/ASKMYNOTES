@@ -17,6 +17,7 @@ export function createVoiceRouter(
   });
 
   router.post("/query", requireAuth, rawAudioParser, controllers.voiceController.query);
+  router.post("/speak", requireAuth, controllers.voiceController.speak);
 
   return router;
 }

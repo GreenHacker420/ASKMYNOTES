@@ -16,7 +16,7 @@ export interface ApiControllers {
 export function createApiRoutes(
   controllers: ApiControllers,
   requireAuth: RequestHandler,
-  uploadLimiter?: RequestHandler
+
 ): Router {
   const router = Router();
 
@@ -26,7 +26,6 @@ export function createApiRoutes(
   router.post(
     "/subjects/:subjectId/files",
     requireAuth,
-    uploadLimiter ?? ((req, _res, next) => next()),
     controllers.ingestionController.uploadFile
   );
   router.post("/subjects/:subjectId/quiz", requireAuth, controllers.quizController.generateQuiz);

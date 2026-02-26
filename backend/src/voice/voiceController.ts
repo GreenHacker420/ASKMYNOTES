@@ -70,6 +70,31 @@ export class VoiceController {
 
       res.setHeader("Content-Type", speech.mimeType);
       res.setHeader("X-Transcript", transcript);
+      res.setHeader("X-Answer", response.answer);
+      res.status(200).send(speech.audioBuffer);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  speak = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const userId = authReq.authUser?.id;
+      if (!userId) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+
+      const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+      if (!text) {
+        res.status(400).json({ error: "text is required" });
+        return;
+      }
+
+      const speech = await this.options.geminiLiveClient.textToSpeech(text);
+      res.setHeader("Content-Type", speech.mimeType);
+      res.setHeader("X-Answer", text);
       res.status(200).send(speech.audioBuffer);
     } catch (error) {
       next(error);

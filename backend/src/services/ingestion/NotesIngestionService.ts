@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { extname } from "node:path";
 import type { Pinecone } from "@pinecone-database/pinecone";
-import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { PDFParse } from "pdf-parse";
 import type { PrismaClient } from "../../../generated/prisma/client";
+import type { EmbeddingClient } from "../embeddings/GeminiEmbeddingClient";
 
 interface ChunkCandidate {
   page: number;
@@ -21,7 +21,7 @@ export interface NotesIngestionServiceOptions {
   prisma: PrismaClient;
   pinecone: Pinecone;
   pineconeIndex: string;
-  googleApiKey: string;
+  embeddingClient: EmbeddingClient;
   chunkSize: number;
   chunkOverlap: number;
 }
@@ -48,7 +48,7 @@ export class NotesIngestionService {
   private readonly prisma: PrismaClient;
   private readonly pinecone: Pinecone;
   private readonly pineconeIndex: string;
-  private readonly embeddings: GoogleGenerativeAIEmbeddings;
+  private readonly embeddingClient: EmbeddingClient;
   private readonly chunkSize: number;
   private readonly chunkOverlap: number;
 
@@ -63,10 +63,7 @@ export class NotesIngestionService {
       throw new Error("CHUNK_OVERLAP must be smaller than CHUNK_SIZE.");
     }
 
-    this.embeddings = new GoogleGenerativeAIEmbeddings({
-      apiKey: options.googleApiKey,
-      model: "text-embedding-004"
-    });
+    this.embeddingClient = options.embeddingClient;
   }
 
   async ingestFile(input: IngestFileInput): Promise<IngestFileResult> {
@@ -109,7 +106,10 @@ export class NotesIngestionService {
     });
 
     input.onProgress?.("vectorizing");
-    const vectors = await this.embeddings.embedDocuments(chunks.map((chunk) => chunk.text));
+    const vectors = await this.embeddingClient.embedDocuments(
+      chunks.map((chunk) => chunk.text),
+      "RETRIEVAL_DOCUMENT"
+    );
     const expectedDim = vectors[0]?.length ?? 0;
     // eslint-disable-next-line no-console
     console.log(
