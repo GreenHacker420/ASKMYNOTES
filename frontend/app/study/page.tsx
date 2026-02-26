@@ -293,24 +293,29 @@ export default function DashboardPage() {
       <GraphPaper />
 
       {/* Top Navbar */}
-      <nav className="sticky top-0 z-40 flex items-center justify-between px-6 py-5 bg-[#fdfbf7] border-b-2 border-slate-200">
+      <nav className="sticky top-0 z-40 flex items-center justify-between px-6 py-5 bg-white border-b-2 border-slate-900 shadow-sm relative">
+        {/* Wavy bottom decoration overlay */}
+        <div className="absolute -bottom-1 left-0 right-0 h-1 bg-yellow-300" style={{ filter: "url(#squiggle)" }} />
+
         <Link
           href="/"
-          className="flex items-center gap-2 text-xl font-black tracking-tighter hover:scale-105 transition-transform"
+          className="flex items-center gap-2 text-xl font-black tracking-tighter hover:scale-105 transition-transform group"
         >
-          <AskMyNotesLogo />
-          AskMyNotes.
+          <div className="group-hover:-rotate-6 transition-transform">
+            <AskMyNotesLogo />
+          </div>
+          <span className="group-hover:text-yellow-500 transition-colors">AskMyNotes.</span>
         </Link>
 
-        <div className="flex items-center gap-3">
-          <span className="hidden md:inline text-xs font-mono text-slate-400">
-            {subjects.length} subject{subjects.length !== 1 ? "s" : ""} •{" "}
-            {subjects.reduce((sum, s) => sum + s.files.length, 0)} files
+        <div className="flex items-center gap-4">
+          <span className="hidden md:flex items-center gap-2 px-3 py-1 rounded border-2 border-slate-900 bg-yellow-50 text-xs font-bold text-slate-800 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]" style={{ filter: "url(#squiggle)" }}>
+            <span>{subjects.length} subject{subjects.length !== 1 ? "s" : ""}</span>
+            <span className="w-1 h-1 rounded-full bg-slate-400" />
+            <span>{subjects.reduce((sum, s) => sum + s.files.length, 0)} files</span>
           </span>
           <Link href="/">
-            <SketchButton className="px-3 py-1.5 text-xs">
-              <LogOut size={14} />
-              Exit
+            <SketchButton className="px-3 py-1.5 text-xs text-slate-700 bg-white">
+              <LogOut size={14} /> Exit
             </SketchButton>
           </Link>
         </div>
@@ -318,10 +323,10 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <div className="relative z-10 flex-1 flex overflow-hidden">
-        {/* Sidebar */}
+        {/* Sidebar container */}
         <motion.div
           animate={{ width: sidebarOpen ? 280 : 0 }}
-          className="flex-shrink-0 border-r-2 border-slate-200 bg-[#fdfbf7]/80 backdrop-blur-sm overflow-hidden"
+          className="flex-shrink-0 bg-[#fdfbf7] relative z-20 border-r-2 border-slate-900 overflow-hidden shadow-[4px_0px_0px_0px_rgba(15,23,42,0.05)]"
         >
           <Sidebar
             subjects={subjects}
@@ -334,26 +339,42 @@ export default function DashboardPage() {
           />
         </motion.div>
 
-        {/* Toggle sidebar */}
+        {/* Toggle sidebar button */}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-20 w-5 h-12 bg-white border-2 border-slate-300 border-l-0 rounded-r-md flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-yellow-50 transition-all"
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-30 w-6 h-14 bg-white border-2 border-slate-900 border-l-0 rounded-r-xl flex items-center justify-center text-slate-900 hover:text-white hover:bg-slate-900 transition-all shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]"
           style={{ left: sidebarOpen ? 278 : 0 }}
+          title={sidebarOpen ? "Close Sidebar" : "Open Sidebar"}
         >
-          <span className="text-xs">{sidebarOpen ? "‹" : "›"}</span>
+          <span className="text-lg font-black">{sidebarOpen ? "‹" : "›"}</span>
         </button>
 
         {/* Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* No subject selected */}
           {!selectedSubject && (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 relative">
+            <div className="flex-1 flex flex-col items-center justify-center p-8 relative overflow-hidden">
               {/* Hand-drawn subtle decorations */}
-              <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-30">
-                <svg className="w-[500px] h-[500px] text-yellow-400 animate-[spin_60s_linear_infinite]" viewBox="0 0 200 200" fill="none">
+              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                {/* Spining dashed circles */}
+                <svg className="w-[500px] h-[500px] text-yellow-400 animate-[spin_60s_linear_infinite] absolute z-0 opacity-40" viewBox="0 0 200 200" fill="none">
                   <path d="M 100, 100 m -75, 0 a 75,75 0 1,0 150,0 a 75,75 0 1,0 -150,0" stroke="currentColor" strokeWidth="2" strokeDasharray="10 15" />
                   <path d="M 100, 100 m -50, 0 a 50,50 0 1,0 100,0 a 50,50 0 1,0 -100,0" stroke="currentColor" strokeWidth="2" strokeDasharray="5 10" opacity="0.5" />
                 </svg>
+
+                {/* Floating Study Doodles */}
+                <motion.div animate={{ y: [0, -15, 0], rotate: [-5, 5, -5] }} transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }} className="absolute top-[15%] left-[10%] text-blue-500 opacity-80 drop-shadow-sm">
+                  <svg width="65" height="65" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" /></svg>
+                </motion.div>
+                <motion.div animate={{ y: [0, 10, 0], rotate: [0, 15, 0] }} transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }} className="absolute bottom-[20%] right-[12%] text-emerald-500 opacity-80 drop-shadow-sm">
+                  <svg width="55" height="55" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
+                </motion.div>
+                <motion.div animate={{ scale: [1, 1.1, 1], rotate: [10, -10, 10] }} transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }} className="absolute top-[25%] right-[20%] text-rose-500 opacity-80 drop-shadow-sm">
+                  <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><path d="m9 9 12-2" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+                </motion.div>
+                <motion.div animate={{ x: [0, -10, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} className="absolute bottom-[30%] left-[15%] text-purple-500 opacity-80 drop-shadow-sm">
+                  <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m18 16 4-4-4-4" /><path d="m6 8-4 4 4 4" /><path d="m14.5 4-5 16" /></svg>
+                </motion.div>
               </div>
 
               <motion.div
@@ -525,6 +546,6 @@ export default function DashboardPage() {
         onCreate={handleCreateSubject}
         existingCount={subjects.length}
       />
-    </main>
+    </main >
   );
 }
