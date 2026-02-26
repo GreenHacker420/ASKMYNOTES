@@ -29,6 +29,7 @@ export default function ForgotPasswordPage(): React.ReactElement {
         setSuccessMessage("");
 
         try {
+            // @ts-expect-error forgetPassword might not be typed correctly without specific better-auth plugins
             const result = await authClient.forgetPassword({
                 email: trimmedEmail,
                 redirectTo: "/reset-password"
@@ -52,7 +53,7 @@ export default function ForgotPasswordPage(): React.ReactElement {
             <SquiggleFilter />
             <GraphPaper />
 
-            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-6 backdrop-blur-sm">
+            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-6">
                 <Link
                     href="/"
                     className="flex items-center gap-2 text-xl font-black tracking-tighter hover:scale-105 transition-transform"

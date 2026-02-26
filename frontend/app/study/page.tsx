@@ -127,7 +127,7 @@ export default function StudyPage(): React.ReactElement {
       <SquiggleFilter />
       <GraphPaper />
 
-      <nav className="sticky top-0 z-40 flex items-center justify-between px-6 py-5 backdrop-blur-sm bg-[#fdfbf7]/80 border-b border-slate-200">
+      <nav className="sticky top-0 z-40 flex items-center justify-between px-6 py-5 bg-[#fdfbf7] border-b border-slate-200">
         <Link href="/" className="flex items-center gap-2 text-xl font-black tracking-tighter hover:scale-105 transition-transform">
           <div className="h-8 w-8 rounded border-2 border-slate-900 bg-slate-800" />
           AskMyNotes.
