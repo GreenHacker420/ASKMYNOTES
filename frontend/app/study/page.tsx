@@ -169,7 +169,7 @@ const TABS: { key: DashboardTab; label: string; icon: React.ElementType }[] = [
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, refetchSession } = useAuth();
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" } | null>(null);
 
   useEffect(() => {
@@ -208,7 +208,7 @@ export default function DashboardPage() {
   // ── Initialization ──
   React.useEffect(() => {
     if (!isLoading && !user) {
-      router.push("/login");
+      router.replace("/login");
     }
   }, [user, isLoading, router]);
 
@@ -351,7 +351,7 @@ export default function DashboardPage() {
       addSubject(newSubject);
     } else {
       if (res.status === 401) {
-        router.push("/login");
+        router.replace("/login");
         return;
       }
       alert(`Failed to create subject: ${res.error}`);
@@ -539,10 +539,13 @@ export default function DashboardPage() {
           <div onClick={async () => {
             try {
               await authClient.signOut();
-              window.location.href = "/";
+              await refetchSession();
+              router.replace("/");
+              router.refresh();
             } catch (err) {
               console.error("Failed to sign out:", err);
-              window.location.href = "/";
+              router.replace("/");
+              router.refresh();
             }
           }}>
             <SketchButton className="px-3 py-1.5 text-xs text-slate-700 bg-white">

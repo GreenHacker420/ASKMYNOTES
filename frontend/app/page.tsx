@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   SquiggleFilter,
   GraphPaper,
@@ -11,9 +12,14 @@ import {
   BottomCTA,
 } from "@/src/components/CoreLandingPages/CompleteLandingPages/tsx/Sketchy";
 import { AskMyNotesLogo } from "@/src/components/AskMyNotesLogo";
+import { useAuth } from "@/src/contexts/AuthContext";
+import { authClient } from "@/src/lib/auth-client";
 
 // --- Main Layout ---
 export default function SketchyPage() {
+  const router = useRouter();
+  const { user, isLoading, refetchSession } = useAuth();
+
   return (
     <main className="relative min-h-screen w-full text-slate-800 overflow-x-hidden font-sans selection:bg-yellow-300 selection:text-black">
       <SquiggleFilter />
@@ -28,16 +34,39 @@ export default function SketchyPage() {
         
         </div>
         <div className="flex gap-4">
-          <Link href="/login">
-            <button className="rounded border-2 border-slate-900 bg-white px-4 py-2 font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-colors">
-              Sign In
-            </button>
-          </Link>
-          <Link href="/register">
-            <button className="rounded border-2 border-slate-900 bg-yellow-300 px-4 py-2 font-bold text-xs uppercase tracking-widest hover:bg-yellow-400 transition-colors shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none">
-              Sign Up
-            </button>
-          </Link>
+          {!isLoading && user ? (
+            <>
+              <Link href="/study">
+                <button className="rounded border-2 border-slate-900 bg-white px-4 py-2 font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-colors">
+                  Study
+                </button>
+              </Link>
+              <button
+                className="rounded border-2 border-slate-900 bg-yellow-300 px-4 py-2 font-bold text-xs uppercase tracking-widest hover:bg-yellow-400 transition-colors shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none"
+                onClick={async () => {
+                  await authClient.signOut();
+                  await refetchSession();
+                  router.replace("/");
+                  router.refresh();
+                }}
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <Link href="/login">
+                <button className="rounded border-2 border-slate-900 bg-white px-4 py-2 font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-colors">
+                  Sign In
+                </button>
+              </Link>
+              <Link href="/register">
+                <button className="rounded border-2 border-slate-900 bg-yellow-300 px-4 py-2 font-bold text-xs uppercase tracking-widest hover:bg-yellow-400 transition-colors shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none">
+                  Sign Up
+                </button>
+              </Link>
+            </>
+          )}
         </div>
       </nav>
 

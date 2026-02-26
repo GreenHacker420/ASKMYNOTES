@@ -113,7 +113,7 @@ import { useAuth } from "@/src/contexts/AuthContext";
 
 export default function LoginPage(): React.ReactElement | null {
   const router = useRouter();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, refetchSession } = useAuth();
 
   const {
     formData,
@@ -130,7 +130,7 @@ export default function LoginPage(): React.ReactElement | null {
 
   React.useEffect(() => {
     if (!isLoading && user) {
-      router.push("/study");
+      router.replace("/study");
     }
   }, [user, isLoading, router]);
 
@@ -188,8 +188,7 @@ export default function LoginPage(): React.ReactElement | null {
     try {
       const result = await authClient.signIn.email({
         email: formData.email.trim().toLowerCase(),
-        password: formData.password,
-        callbackURL: `${window.location.origin}/study`
+        password: formData.password
       });
 
       if (result.error) {
@@ -197,7 +196,8 @@ export default function LoginPage(): React.ReactElement | null {
         return;
       }
 
-      router.push("/study");
+      await refetchSession();
+      router.replace("/study");
       router.refresh();
     } catch {
       setServerError("Login failed. Please try again.");

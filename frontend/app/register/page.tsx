@@ -115,7 +115,7 @@ import { useAuth } from "@/src/contexts/AuthContext";
 
 export default function RegisterPage(): React.ReactElement | null {
   const router = useRouter();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, refetchSession } = useAuth();
 
   const {
     formData,
@@ -134,7 +134,7 @@ export default function RegisterPage(): React.ReactElement | null {
 
   React.useEffect(() => {
     if (!isLoading && user) {
-      router.push("/study");
+      router.replace("/study");
     }
   }, [user, isLoading, router]);
 
@@ -210,8 +210,7 @@ export default function RegisterPage(): React.ReactElement | null {
       const result = await authClient.signUp.email({
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
-        password: formData.password,
-        callbackURL: `${window.location.origin}/study`
+        password: formData.password
       });
 
       if (result.error) {
@@ -220,7 +219,8 @@ export default function RegisterPage(): React.ReactElement | null {
       }
 
       if (result.data?.token) {
-        router.push("/study");
+        await refetchSession();
+        router.replace("/study");
         router.refresh();
         return;
       }

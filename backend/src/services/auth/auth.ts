@@ -50,6 +50,13 @@ export function createBetterAuth(prisma: PrismaClient, env: BetterAuthEnv) {
     trustedOrigins.add(env.frontendUrl);
   }
 
+  const dispatchEmail = (send: () => Promise<void>, context: string) => {
+    void send().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[auth-email] Failed to send ${context}: ${message}`);
+    });
+  };
+
   return betterAuth({
     secret: env.betterAuthSecret,
     baseURL: env.betterAuthUrl,
@@ -73,12 +80,16 @@ export function createBetterAuth(prisma: PrismaClient, env: BetterAuthEnv) {
           resetUrl: url
         });
 
-        await smtpSender.sendMail({
-          to: user.email,
-          subject: "Reset your AskMyNotes password",
-          html: rendered.html,
-          text: rendered.text
-        });
+        dispatchEmail(
+          () =>
+            smtpSender.sendMail({
+              to: user.email,
+              subject: "Reset your AskMyNotes password",
+              html: rendered.html,
+              text: rendered.text
+            }),
+          `reset email to ${user.email}`
+        );
       }
     },
     emailVerification: {
@@ -96,12 +107,16 @@ export function createBetterAuth(prisma: PrismaClient, env: BetterAuthEnv) {
           verificationUrl: url
         });
 
-        await smtpSender.sendMail({
-          to: user.email,
-          subject: "Verify your AskMyNotes email",
-          html: rendered.html,
-          text: rendered.text
-        });
+        dispatchEmail(
+          () =>
+            smtpSender.sendMail({
+              to: user.email,
+              subject: "Verify your AskMyNotes email",
+              html: rendered.html,
+              text: rendered.text
+            }),
+          `verification email to ${user.email}`
+        );
       }
     },
     ...(socialProviders ? { socialProviders } : {})

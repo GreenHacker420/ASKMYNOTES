@@ -27,6 +27,9 @@ export class SmtpEmailSender {
       host: options.host,
       port: options.port,
       secure: options.secure,
+      connectionTimeout: 15_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
       auth: {
         user: options.user,
         pass: options.pass
