@@ -24,11 +24,26 @@ import type {
   ShortAnswer,
 } from "@/src/components/dashboard/types";
 import { SUBJECT_COLORS } from "@/src/components/dashboard/types";
-import { askNotesAction, type AskResponsePayload } from "@/src/lib/actions";
+import {
+  askNotesAction,
+  getSubjectsAction,
+  createSubjectAction,
+  uploadFileAction,
+  getSubjectFilesAction,
+  type AskResponsePayload
+} from "@/src/lib/actions";
 import { authClient } from "@/src/lib/auth-client";
 import { AskMyNotesLogo } from "@/src/components/AskMyNotesLogo";
 
 // ── Helpers ──
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = (error) => reject(error);
+  });
+};
 
 function createId(): string {
   return `id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -45,41 +60,7 @@ function createThreadId(): string {
   return `thread-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// ── Mock response generators ──
-
-function generateMockAnswer(question: string, subjectName: string): ChatMessage {
-  // Simulate "not found" for very short questions
-  if (question.length < 8) {
-    return {
-      id: createId(),
-      role: "assistant",
-      content: `Not found in your notes for ${subjectName}. Your question may be too vague — try asking something more specific about your uploaded material.`,
-      timestamp: new Date(),
-      notFound: true,
-    };
-  }
-
-  return {
-    id: createId(),
-    role: "assistant",
-    content: `Based on your ${subjectName} notes, here's what I found:\n\n${question.includes("law")
-      ? "Newton's Second Law states that the acceleration of an object is directly proportional to the net force acting on it and inversely proportional to its mass. This is expressed mathematically as F = ma, where F is the net force, m is the mass, and a is the acceleration."
-      : question.includes("formula") || question.includes("equation")
-        ? "The key formula from your notes is derived from the fundamental principles discussed in Chapter 3. It relates the variables through a direct proportional relationship, as shown in the worked examples on pages 42-45."
-        : `The topic you asked about is covered in your uploaded notes. The key concept involves understanding the relationships between the fundamental principles discussed across multiple sections of your study material. According to Section 3.2, this builds on the foundational theory introduced earlier.`
-      }`,
-    timestamp: new Date(),
-    confidence: question.length > 30 ? "High" : question.length > 15 ? "Medium" : "Low",
-    citations: [
-      { fileName: "notes_ch3.pdf", page: 42, chunkId: "c-001" },
-      { fileName: "lecture_summary.txt", page: null, chunkId: "c-014" },
-    ],
-    evidence: [
-      "The relationship between force, mass, and acceleration is fundamental to classical mechanics...",
-      "As demonstrated in Example 3.4, applying the principle yields consistent results across varying conditions...",
-    ],
-  };
-}
+// ── Mock response generators (used for fallback or design) ──
 
 function generateMockQuiz(subjectName: string): StudyQuiz {
   const mcqs: MCQ[] = [
@@ -208,6 +189,7 @@ export default function DashboardPage() {
     setIsQuizGenerating,
     setSidebarOpen,
     addSubject,
+    setSubjects,
     uploadFiles,
     deleteFile,
     addChatMessage,
@@ -216,32 +198,116 @@ export default function DashboardPage() {
 
   const selectedSubject = subjects.find((s) => s.id === selectedId) ?? null;
 
+  // ── Initialization ──
+  React.useEffect(() => {
+    async function fetchSubjects() {
+      const res = await getSubjectsAction();
+      if (res.ok && res.data) {
+        const backendSubjects = res.data.subjects;
+        const mappedSubjects: Subject[] = backendSubjects.map((bs, index) => ({
+          id: bs.id,
+          name: bs.name,
+          color: SUBJECT_COLORS[index % SUBJECT_COLORS.length]?.accent ?? "#3b82f6",
+          emoji: SUBJECT_COLORS[index % SUBJECT_COLORS.length]?.emoji ?? "📘",
+          files: [],
+          chatMessages: [],
+          studyQuiz: null,
+          threadId: createThreadId(), // We generate a local thread ID for this session
+        }));
+        setSubjects(mappedSubjects);
+      }
+    }
+    fetchSubjects();
+  }, [setSubjects]);
+
+  // Fetch files when a subject is selected
+  React.useEffect(() => {
+    if (!selectedId) return;
+
+    // Check if we've already loaded files (simple optimization)
+    const currentSubject = subjects.find(s => s.id === selectedId);
+    if (currentSubject && currentSubject.files.length > 0) return;
+
+    async function fetchFiles() {
+      const res = await getSubjectFilesAction(selectedId as string);
+      if (res.ok && res.data) {
+        const backendFiles = res.data.files;
+        const mappedFiles: UploadedFile[] = backendFiles.map((f: any) => {
+          const isPdf = f.mimeType === "application/pdf" || f.fileName.toLowerCase().endsWith(".pdf");
+          return {
+            id: f.id,
+            name: f.fileName,
+            size: 0,
+            type: (isPdf ? "pdf" : "txt") as "pdf" | "txt",
+            file: new File([], f.fileName), // Placeholder file
+            uploadedAt: new Date(f.createdAt)
+          };
+        });
+        // Avoid overwriting if they already exist, but for now just replace
+        if (mappedFiles.length > 0) {
+          uploadFiles(selectedId as string, mappedFiles);
+        }
+      }
+    }
+    fetchFiles();
+  }, [selectedId, subjects, uploadFiles]);
+
+
   // ── Actions ──
 
-  const handleCreateSubject = useCallback((name: string) => {
-    const colorIndex = subjects.length;
-    const newSubject: Subject = {
-      id: createId(),
-      name,
-      color: SUBJECT_COLORS[colorIndex]?.accent ?? "#3b82f6",
-      emoji: SUBJECT_COLORS[colorIndex]?.emoji ?? "📘",
-      files: [],
-      chatMessages: [],
-      studyQuiz: null,
-      threadId: createThreadId(),
-    };
-    addSubject(newSubject);
+  const handleCreateSubject = useCallback(async (name: string) => {
+    const res = await createSubjectAction({ name });
+    if (res.ok && res.data) {
+      const bs = res.data.subject;
+      const colorIndex = subjects.length;
+      const newSubject: Subject = {
+        id: bs.id,
+        name: bs.name,
+        color: SUBJECT_COLORS[colorIndex % SUBJECT_COLORS.length]?.accent ?? "#3b82f6",
+        emoji: SUBJECT_COLORS[colorIndex % SUBJECT_COLORS.length]?.emoji ?? "📘",
+        files: [],
+        chatMessages: [],
+        studyQuiz: null,
+        threadId: createThreadId(),
+      };
+      addSubject(newSubject);
+    } else {
+      alert(`Failed to create subject: ${res.error}`);
+    }
   }, [subjects.length, addSubject]);
 
-  const handleUploadFiles = useCallback((subjectId: string, files: UploadedFile[]) => {
-    uploadFiles(subjectId, files);
-  }, [uploadFiles]);
+  const handleUploadFiles = useCallback(async (subjectId: string, droppingFiles: UploadedFile[]) => {
+    // Optimistic UI could be added here, but for simplicity we'll just wait for upload
+    const currentSubject = subjects.find(s => s.id === subjectId);
+
+    for (const dropFile of droppingFiles) {
+      if (!dropFile.file) continue;
+      try {
+        const base64Content = await fileToBase64(dropFile.file);
+
+        await uploadFileAction({
+          subjectId,
+          subjectName: currentSubject?.name,
+          fileName: dropFile.name,
+          mimeType: dropFile.file.type,
+          contentBase64: base64Content
+        });
+
+      } catch (err) {
+        console.error("Failed to upload file:", dropFile.name, err);
+        alert(`Failed to upload ${dropFile.name}`);
+      }
+    }
+
+    // We update UI directly with the dropped files since we processed them
+    uploadFiles(subjectId, droppingFiles);
+  }, [subjects, uploadFiles]);
 
   const handleDeleteFile = useCallback((subjectId: string, fileId: string) => {
     deleteFile(subjectId, fileId);
   }, [deleteFile]);
 
-  const handleSendMessage = useCallback((subjectId: string, message: string) => {
+  const handleSendMessage = useCallback(async (subjectId: string, message: string) => {
     // Add user message
     const userMsg: ChatMessage = {
       id: createId(),
@@ -252,15 +318,53 @@ export default function DashboardPage() {
 
     addChatMessage(subjectId, userMsg);
 
-    // Simulate AI response
+    // Call real API
     setIsChatLoading(true);
-    const subjectName = subjects.find((s) => s.id === subjectId)?.name ?? "this subject";
+    const currentSubject = subjects.find(s => s.id === subjectId);
 
-    setTimeout(() => {
-      const aiMsg = generateMockAnswer(message, subjectName);
-      addChatMessage(subjectId, aiMsg);
+    try {
+      const res = await askNotesAction({
+        question: message,
+        subjectId,
+        subjectName: currentSubject?.name,
+        threadId: currentSubject?.threadId || createThreadId(),
+      });
+
+      if (res.ok && res.data) {
+        const payload = res.data;
+        const aiMsg: ChatMessage = {
+          id: createId(),
+          role: "assistant",
+          content: payload.answer,
+          timestamp: new Date(),
+          confidence: payload.confidence,
+          citations: payload.citations,
+          evidence: payload.evidence,
+          notFound: !payload.found,
+        };
+        addChatMessage(subjectId, aiMsg);
+      } else {
+        const errorMsg: ChatMessage = {
+          id: createId(),
+          role: "assistant",
+          content: `I'm sorry, I encountered an error: ${res.error}`,
+          timestamp: new Date(),
+          notFound: true,
+        };
+        addChatMessage(subjectId, errorMsg);
+      }
+    } catch (err) {
+      console.error("Chat error:", err);
+      addChatMessage(subjectId, {
+        id: createId(),
+        role: "assistant",
+        content: "A network error occurred while trying to reach the backend.",
+        timestamp: new Date(),
+        notFound: true,
+      });
+    } finally {
       setIsChatLoading(false);
-    }, 1200 + Math.random() * 800);
+    }
   }, [subjects, addChatMessage, setIsChatLoading]);
 
   const handleGenerateQuiz = useCallback((subjectId: string) => {

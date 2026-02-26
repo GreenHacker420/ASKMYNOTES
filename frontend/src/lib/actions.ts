@@ -7,8 +7,33 @@ const DEFAULT_BACKEND_BASE_URL = "http://localhost:3001";
 export const BACKEND_ROUTES = {
   health: "/health",
   ask: "/api/ask",
-  authBase: "/api/auth"
+  authBase: "/api/auth",
+  subjects: "/api/subjects"
 } as const;
+
+export interface BackendSubject {
+  id: string;
+  name: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BackendFile {
+  id: string;
+  fileName: string;
+  mimeType: string | null;
+  subjectId: string;
+  createdAt: string;
+}
+
+export interface UploadFilePayload {
+  subjectId: string;
+  subjectName?: string;
+  fileName: string;
+  mimeType?: string;
+  contentBase64: string;
+}
 
 export interface AskRequestPayload {
   question: string;
@@ -166,5 +191,81 @@ export async function checkBackendHealthAction(): Promise<ActionResult<{ ok: boo
       status: 500,
       error: "Failed to reach backend."
     };
+  }
+}
+
+export async function getSubjectsAction(): Promise<ActionResult<{ subjects: BackendSubject[] }>> {
+  try {
+    const response = await callBackend(BACKEND_ROUTES.subjects, {
+      method: "GET"
+    });
+
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      return { ok: false, status: response.status, error: errorMsg };
+    }
+
+    const data = await response.json();
+    return { ok: true, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, error: "Network error" };
+  }
+}
+
+export async function createSubjectAction({ name }: { name: string }): Promise<ActionResult<{ subject: BackendSubject }>> {
+  try {
+    const response = await callBackend(BACKEND_ROUTES.subjects, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name })
+    });
+
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      return { ok: false, status: response.status, error: errorMsg };
+    }
+
+    const data = await response.json();
+    return { ok: true, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, error: "Network error" };
+  }
+}
+
+export async function uploadFileAction(payload: UploadFilePayload): Promise<ActionResult<any>> {
+  try {
+    const response = await callBackend(`${BACKEND_ROUTES.subjects}/${payload.subjectId}/files`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      return { ok: false, status: response.status, error: errorMsg };
+    }
+
+    const data = await response.json();
+    return { ok: true, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, error: "Network error" };
+  }
+}
+
+export async function getSubjectFilesAction(subjectId: string): Promise<ActionResult<{ files: BackendFile[] }>> {
+  try {
+    const response = await callBackend(`${BACKEND_ROUTES.subjects}/${subjectId}/files`, {
+      method: "GET"
+    });
+
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      return { ok: false, status: response.status, error: errorMsg };
+    }
+
+    const data = await response.json();
+    return { ok: true, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, error: "Network error" };
   }
 }

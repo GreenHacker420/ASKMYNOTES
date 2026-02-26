@@ -40,6 +40,7 @@ export function NotesPanel({ subject, onUploadFiles, onDeleteFile }: NotesPanelP
                         size: file.size,
                         type: ext as "pdf" | "txt",
                         uploadedAt: new Date(),
+                        file: file,
                     });
                 } else {
                     rejected.push(file.name);

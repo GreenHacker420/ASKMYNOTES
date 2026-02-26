@@ -6,6 +6,7 @@ export interface UploadedFile {
     size: number;
     type: "pdf" | "txt";
     uploadedAt: Date;
+    file?: File;
 }
 
 export interface Citation {
