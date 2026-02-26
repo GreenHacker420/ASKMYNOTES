@@ -91,6 +91,8 @@ export class IngestionController {
 
       res.status(201).json({ ingestion });
     } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error("[ingestion] upload failed", error);
       next(error);
     }
   };

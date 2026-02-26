@@ -74,6 +74,13 @@ export class NotesIngestionService {
     const pages = await this.extractPages(input.fileName, input.mimeType, input.content);
 
     input.onProgress?.("chunking");
+
+    const rawTextLength = pages.reduce((sum, page) => sum + page.text.length, 0);
+    // eslint-disable-next-line no-console
+    console.log(
+      `[ingestion] Extracted ${pages.length} pages, total text length=${rawTextLength} for ${input.fileName}`
+    );
+
     const chunks = this.createChunks({
       subjectId: input.subjectId,
       fileName: input.fileName,
@@ -84,7 +91,13 @@ export class NotesIngestionService {
       throw new Error("No extractable text found in file.");
     }
 
+
     input.onProgress?.("saving");
+
+    // eslint-disable-next-line no-console
+    console.log(`[ingestion] Created ${chunks.length} chunks for ${input.fileName}`);
+
+
     await this.prisma.subject.upsert({
       where: { id: input.subjectId },
       update: { name: input.subjectName, userId: input.userId },
@@ -98,6 +111,10 @@ export class NotesIngestionService {
     input.onProgress?.("vectorizing");
     const vectors = await this.embeddings.embedDocuments(chunks.map((chunk) => chunk.text));
     const expectedDim = vectors[0]?.length ?? 0;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[ingestion] Embedding vectors=${vectors.length}, dimension=${expectedDim} for ${input.fileName}`
+    );
     if (expectedDim === 0) {
       throw new Error("Embedding generation failed (empty vectors). Check GOOGLE_API_KEY and embedding model access.");
     }
