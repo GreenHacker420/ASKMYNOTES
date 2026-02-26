@@ -2,14 +2,13 @@
 
 import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, FileText, Trash2, FileType, AlertCircle } from "lucide-react";
+import { Upload, FileText, FileType, AlertCircle } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import type { Subject, UploadedFile } from "./types";
 
 interface NotesPanelProps {
     subject: Subject;
     onUploadFiles: (subjectId: string, files: UploadedFile[]) => void;
-    onDeleteFile: (subjectId: string, fileId: string) => void;
 }
 
 function formatSize(bytes: number): string {
@@ -18,7 +17,7 @@ function formatSize(bytes: number): string {
     return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
 
-export function NotesPanel({ subject, onUploadFiles, onDeleteFile }: NotesPanelProps) {
+export function NotesPanel({ subject, onUploadFiles }: NotesPanelProps) {
     const [dragOver, setDragOver] = useState(false);
     const [error, setError] = useState("");
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -229,13 +228,6 @@ export function NotesPanel({ subject, onUploadFiles, onDeleteFile }: NotesPanelP
                                                 )}
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={() => onDeleteFile(subject.id, file.id)}
-                                            className="sm:opacity-0 group-hover:opacity-100 flex items-center justify-center w-10 h-10 rounded-lg border-2 border-transparent hover:border-slate-900 hover:bg-red-100 hover:text-red-600 text-slate-400 transition-all shrink-0 self-end sm:self-auto"
-                                            title="Delete file"
-                                        >
-                                            <Trash2 size={18} />
-                                        </button>
                                     </motion.div>
                                 ))}
                             </div>

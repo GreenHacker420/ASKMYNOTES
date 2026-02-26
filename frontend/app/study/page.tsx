@@ -31,7 +31,6 @@ import {
   createSubjectAction,
   uploadFileAction,
   getSubjectFilesAction,
-  deleteFileAction,
   generateQuizAction,
   type AskResponsePayload
 } from "@/src/lib/actions";
@@ -199,7 +198,6 @@ export default function DashboardPage() {
     setSubjects,
     uploadFiles,
     updateFileStatus,
-    deleteFile,
     addChatMessage,
     updateChatMessage,
     setStudyQuiz
@@ -402,26 +400,6 @@ export default function DashboardPage() {
       }
     }
   }, [subjects, uploadFiles, updateFileStatus]);
-
-  const handleDeleteFile = useCallback(async (subjectId: string, fileId: string) => {
-    const subject = subjects.find(s => s.id === subjectId);
-    const file = subject?.files.find(f => f.id === fileId);
-
-    if (!file) return;
-
-    // 1. Optimistically remove from frontend immediately
-    deleteFile(subjectId, fileId);
-
-    // 2. Attempt backend deletion in the background
-    try {
-      const res = await deleteFileAction(subjectId, file.name);
-      if (!res.ok) {
-        console.warn(`Backend delete failed for ${file.name}: ${res.error}. The file might still exist on the server.`);
-      }
-    } catch (err) {
-      console.error("Background delete failed", err);
-    }
-  }, [subjects, deleteFile]);
 
   const handleSendMessage = useCallback(async (subjectId: string, message: string) => {
     // Add user message
@@ -749,7 +727,6 @@ export default function DashboardPage() {
                       <NotesPanel
                         subject={selectedSubject}
                         onUploadFiles={handleUploadFiles}
-                        onDeleteFile={handleDeleteFile}
                       />
                     </motion.div>
                   )}
