@@ -21,12 +21,13 @@ export class SmtpEmailSender {
   private readonly transporter: nodemailer.Transporter;
 
   constructor(options: SmtpEmailSenderOptions) {
-    this.from = options.from;
+    const isGmailSmtp = options.host.trim().toLowerCase() === "smtp.gmail.com";
+    this.from = isGmailSmtp ? options.user : options.from;
 
     this.transporter = nodemailer.createTransport({
       host: options.host,
-      port: options.port,
-      secure: options.secure,
+      port: isGmailSmtp ? 465 : options.port,
+      secure: isGmailSmtp ? true : options.secure,
       connectionTimeout: 15_000,
       greetingTimeout: 10_000,
       socketTimeout: 20_000,
