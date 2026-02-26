@@ -25,7 +25,7 @@ export default function SketchyPage() {
           AskMyNotes.
         </div>
         <div className="hidden md:block font-mono text-xs">
-          Coordinates: {`{ x: 0, y: 0 }`}
+        
         </div>
         <div className="flex gap-4">
           <Link href="/login">
