@@ -26,7 +26,7 @@ export class SmtpEmailSender {
   constructor(options: SmtpEmailSenderOptions) {
     if (options.resendApiKey) {
       this.resend = new Resend(options.resendApiKey);
-      this.from = options.from || "onboarding@resend.dev";
+      this.from = "onboarding@resend.dev"; // Resend free tier strict requirement
     } else {
       const isGmailSmtp = options.host.trim().toLowerCase() === "smtp.gmail.com";
       this.from = isGmailSmtp ? options.user : options.from;
