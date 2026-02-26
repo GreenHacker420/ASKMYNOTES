@@ -45,6 +45,8 @@ export interface AppEnv {
   pineconeEnv: string;
   pineconeIndex: string;
   googleApiKey: string;
+  embeddingModel: string;
+  embeddingDimension: number;
   notFoundThreshold: number;
   chunkSize: number;
   chunkOverlap: number;
@@ -66,6 +68,7 @@ export interface AppEnv {
   googleOauthClientId?: string;
   googleOauthClientSecret?: string;
   frontendUrl: string;
+  disableRateLimits: boolean;
 }
 
 export function loadAppEnv(): AppEnv {
@@ -87,6 +90,8 @@ export function loadAppEnv(): AppEnv {
     pineconeEnv: readEnv("PINECONE_ENV"),
     pineconeIndex: readEnv("PINECONE_INDEX"),
     googleApiKey,
+    embeddingModel: readEnv("EMBEDDING_MODEL", "gemini-embedding-001"),
+    embeddingDimension: readNumberEnv("EMBEDDING_DIM", 768),
     notFoundThreshold: readNumberEnv("NOT_FOUND_THRESHOLD", 0.35),
     chunkSize: readNumberEnv("CHUNK_SIZE", 1200),
     chunkOverlap: readNumberEnv("CHUNK_OVERLAP", 200),
@@ -111,6 +116,8 @@ export function loadAppEnv(): AppEnv {
     googleOauthClientId: readOptionalEnv("GOOGLE_CLIENT_ID"),
     googleOauthClientSecret: readOptionalEnv("GOOGLE_CLIENT_SECRET"),
     frontendUrl: readEnv("FRONTEND_URL", "http://localhost:3000")
+    ,
+    disableRateLimits: readBooleanEnv("DISABLE_RATE_LIMITS", false)
   };
 }
 

@@ -2,7 +2,6 @@ import cors from "cors";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { toNodeHandler } from "better-auth/node";
 import { buildCragConfig } from "./config/cragConfig";
 import type { AppEnv } from "./config/env";
@@ -22,9 +21,9 @@ import { PostProcessor } from "./services/postprocess/PostProcessor";
 import { PromptBuilder } from "./services/prompt/PromptBuilder";
 import { SubjectRepository } from "./services/prisma/SubjectRepository";
 import { PrismaClientProvider } from "./services/prisma/PrismaClientProvider";
-import { LangChainPineconeStoreFactory } from "./services/retrieval/LangChainPineconeStoreFactory";
 import { Reranker } from "./services/retrieval/Reranker";
 import { SubjectScopedRetriever } from "./services/retrieval/SubjectScopedRetriever";
+import { GeminiEmbeddingClient } from "./services/embeddings/GeminiEmbeddingClient";
 import { createApiRoutes } from "./routes/apiRoutes";
 import { createBetterAuth, type BetterAuthInstance } from "./services/auth/auth";
 import { createRequireAuth } from "./services/auth/requireAuth";
@@ -52,20 +51,16 @@ export function createApp(envInput?: AppEnv): AppBootstrap {
   const requireAuth = createRequireAuth(auth);
 
   const pinecone = new PineconeClientFactory({ apiKey: env.pineconeApiKey }).createClient();
-  const embeddings = new GoogleGenerativeAIEmbeddings({
+  const embeddingClient = new GeminiEmbeddingClient({
     apiKey: env.googleApiKey,
-    model: "text-embedding-004"
+    model: env.embeddingModel,
+    outputDimensionality: env.embeddingDimension
   });
 
   const retriever = new SubjectScopedRetriever({
     pinecone,
     pineconeIndexName: env.pineconeIndex,
-    googleApiKey: env.googleApiKey,
-    langChainStoreFactory: new LangChainPineconeStoreFactory({
-      pinecone,
-      indexName: env.pineconeIndex,
-      embeddings
-    })
+    embeddingClient
   });
 
   const reranker = new Reranker();
@@ -118,7 +113,7 @@ export function createApp(envInput?: AppEnv): AppBootstrap {
       prisma: prismaProvider.getClient(),
       pinecone,
       pineconeIndex: env.pineconeIndex,
-      googleApiKey: env.googleApiKey,
+      embeddingClient,
       chunkSize: env.chunkSize,
       chunkOverlap: env.chunkOverlap
     })

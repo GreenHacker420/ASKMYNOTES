@@ -12,6 +12,8 @@ export interface GeminiLangChainClientOptions {
 export class GeminiLangChainClient implements ILLMClient {
   private readonly model: ChatGoogleGenerativeAI;
   private readonly nativeClient: GeminiNativeSdkClient;
+  private readonly teacherSuffix =
+    "\n\nAs a teacher, end with a short check-in question like: \"Did that make sense?\"";
 
   constructor(options: GeminiLangChainClientOptions) {
     this.model = new ChatGoogleGenerativeAI({
@@ -32,7 +34,7 @@ export class GeminiLangChainClient implements ILLMClient {
       .map(([role, content]) => `${role.toUpperCase()}:\n${content}`)
       .join("\n\n");
 
-    const response = await this.model.invoke(prompt);
+    const response = await this.model.invoke(`${prompt}${this.teacherSuffix}`);
 
     if (typeof response.content === "string") {
       return response.content;
@@ -55,6 +57,6 @@ export class GeminiLangChainClient implements ILLMClient {
       return normalized;
     }
 
-    return this.nativeClient.generateContent(prompt);
+    return this.nativeClient.generateContent(`${prompt}${this.teacherSuffix}`);
   }
 }
