@@ -59,8 +59,30 @@ export default function Preloader() {
                     </svg>
 
                     {/* Graph paper background */}
-                    <div className="absolute inset-0 z-0">
+                    <div className="absolute inset-0 z-0 overflow-hidden">
                         <GraphPaper />
+
+                        {/* Floating Study Doodles (Medium fade) */}
+                        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                            {/* Spining dashed circles */}
+                            <svg className="w-[800px] h-[800px] text-yellow-300 animate-[spin_80s_linear_infinite] absolute z-0 opacity-40" viewBox="0 0 200 200" fill="none">
+                                <path d="M 100, 100 m -75, 0 a 75,75 0 1,0 150,0 a 75,75 0 1,0 -150,0" stroke="currentColor" strokeWidth="1" strokeDasharray="10 15" />
+                                <path d="M 100, 100 m -50, 0 a 50,50 0 1,0 100,0 a 50,50 0 1,0 -100,0" stroke="currentColor" strokeWidth="1" strokeDasharray="5 10" opacity="0.5" />
+                            </svg>
+
+                            <motion.div animate={{ y: [0, -15, 0], rotate: [-5, 5, -5] }} transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }} className="absolute top-[20%] left-[15%] text-blue-400 opacity-50 drop-shadow-sm">
+                                <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" /></svg>
+                            </motion.div>
+                            <motion.div animate={{ y: [0, 10, 0], rotate: [0, 15, 0] }} transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }} className="absolute bottom-[25%] right-[15%] text-emerald-400 opacity-50 drop-shadow-sm">
+                                <svg width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
+                            </motion.div>
+                            <motion.div animate={{ scale: [1, 1.1, 1], rotate: [10, -10, 10] }} transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }} className="absolute top-[25%] right-[25%] text-rose-400 opacity-50 drop-shadow-sm">
+                                <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><path d="m9 9 12-2" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+                            </motion.div>
+                            <motion.div animate={{ x: [0, -10, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} className="absolute bottom-[35%] left-[25%] text-purple-400 opacity-50 drop-shadow-sm">
+                                <svg width="75" height="75" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 16 4-4-4-4" /><path d="m6 8-4 4 4 4" /><path d="m14.5 4-5 16" /></svg>
+                            </motion.div>
+                        </div>
                     </div>
 
                     <div className="relative z-10 flex flex-col items-center">
