@@ -159,7 +159,7 @@ export class NotesIngestionService {
       extension === ".md";
 
     if (isPdf) {
-      const parser = new PDFParse({ data: new Uint8Array(content) });
+      const parser = new PDFParse({ data: content });
       try {
         const textResult = await parser.getText();
         return textResult.pages.map((page) => ({

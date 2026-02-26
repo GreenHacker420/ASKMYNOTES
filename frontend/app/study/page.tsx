@@ -350,12 +350,17 @@ export default function DashboardPage() {
     for (const dropFile of droppingFiles) {
       if (!dropFile.file) continue;
       try {
-        await uploadFileAction({
+        const res = await uploadFileAction({
           subjectId,
           subjectName: currentSubject?.name,
           file: dropFile.file
         });
-        uploaded.push(dropFile);
+        if (res.ok) {
+          uploaded.push(dropFile);
+        } else {
+          console.error("Failed to upload file:", dropFile.name, res.error);
+          alert(`Failed to upload ${dropFile.name}: ${res.error ?? "Unknown error"}`);
+        }
 
       } catch (err) {
         console.error("Failed to upload file:", dropFile.name, err);
