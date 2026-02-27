@@ -70,7 +70,7 @@ export function createBetterAuth(prisma: PrismaClient, env: BetterAuthEnv) {
 
     emailAndPassword: {
       enabled: true,
-      requireEmailVerification: true,
+      requireEmailVerification: false,
       sendResetPassword: async ({ user, url }) => {
         if (!smtpSender) {
           console.warn(`SMTP credentials missing. Reset URL for ${user.email}: ${url}`);

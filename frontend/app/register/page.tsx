@@ -132,8 +132,6 @@ export default function RegisterPage(): React.ReactElement | null {
     setSuccessMessage
   } = useRegisterStore();
 
-  const [showResend, setShowResend] = React.useState(false);
-
   React.useEffect(() => {
     if (!isLoading && user) {
       router.replace("/study");
@@ -217,46 +215,16 @@ export default function RegisterPage(): React.ReactElement | null {
       });
 
       if (result.error) {
-        if (result.error.message?.toLowerCase().includes("already exists")) {
-          setShowResend(true);
-        }
         setServerError(result.error.message ?? "Registration failed.");
         return;
       }
 
-      if (result.data?.token) {
-        await refetchSession();
-        router.replace("/study");
-        router.refresh();
-        return;
-      }
-
-      setSuccessMessage("Account created. Check your email to verify your account, then log in.");
+      // Since email verification is disabled, user is immediately signed in
+      await refetchSession();
+      router.replace("/study");
+      router.refresh();
     } catch {
       setServerError("Registration failed. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleResendEmail = async () => {
-    setIsSubmitting(true);
-    setServerError("");
-    setSuccessMessage("");
-    try {
-      const result = await authClient.sendVerificationEmail({
-        email: formData.email.trim().toLowerCase(),
-        callbackURL: `${window.location.origin}/study`
-      });
-
-      if (result.error) {
-        setServerError(result.error.message || "Failed to resend email.");
-      } else {
-        setSuccessMessage("Verification email resent! Please check your inbox.");
-        setShowResend(false);
-      }
-    } catch {
-      setServerError("Failed to resend email. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -387,18 +355,8 @@ export default function RegisterPage(): React.ReactElement | null {
               />
 
               {serverError ? (
-                <div className="rounded border-2 border-red-400 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 flex flex-col gap-2">
-                  <span>{serverError}</span>
-                  {showResend && (
-                    <button
-                      type="button"
-                      onClick={handleResendEmail}
-                      disabled={isSubmitting}
-                      className="underline text-red-900 hover:text-red-700 font-bold self-start mt-1 disabled:opacity-50"
-                    >
-                      Resend Verification Email
-                    </button>
-                  )}
+                <div className="rounded border-2 border-red-400 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+                  {serverError}
                 </div>
               ) : null}
 
