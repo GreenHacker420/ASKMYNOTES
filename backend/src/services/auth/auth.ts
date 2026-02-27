@@ -48,9 +48,8 @@ export function createBetterAuth(prisma: PrismaClient, env: BetterAuthEnv) {
       : undefined;
 
   const trustedOrigins = new Set(env.betterAuthTrustedOrigins);
-  if (env.frontendUrl) {
-    trustedOrigins.add(env.frontendUrl);
-  }
+  trustedOrigins.add("https://askmynotes-4ro5.vercel.app");
+  trustedOrigins.add("https://askmynotes-backend.onrender.com");
 
   const dispatchEmail = (send: () => Promise<void>, context: string) => {
     void send().catch((error: unknown) => {
@@ -59,9 +58,7 @@ export function createBetterAuth(prisma: PrismaClient, env: BetterAuthEnv) {
     });
   };
 
-  const baseAuthUrl = env.frontendUrl
-    ? (env.frontendUrl.endsWith("/") ? `${env.frontendUrl}api/auth` : `${env.frontendUrl}/api/auth`)
-    : env.betterAuthUrl;
+  const baseAuthUrl = "https://askmynotes-4ro5.vercel.app/api/auth";
 
   return betterAuth({
     secret: env.betterAuthSecret,
